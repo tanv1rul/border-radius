@@ -1,1 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ResizableTable Example</title>
+    <!-- <link rel="stylesheet" href="src/style.css"> -->
+</head>
+<body>
+    <h1>ResizableTable Example</h1>
 
+    <table id="myTable" border="1">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Country</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>John Doe</td>
+          <td>john.doe@example.com</td>
+          <td>USA</td>
+        </tr>
+        <tr>
+          <td>Jane Smith</td>
+          <td>jane.smith@example.com</td>
+          <td>Canada</td>
+        </tr>
+        <tr>
+          <td>Peter Jones</td>
+          <td>peter.jones@example.com</td>
+          <td>UK</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <script src="src/ResizableTable.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        try {
+          const tableInstance = new ResizableTable('#myTable');
+          console.log('ResizableTable instance:', tableInstance);
+          // You can add more checks here, e.g.,
+          // console.log('Is initialized:', tableInstance.isInitialized);
+          // console.log('Column count:', tableInstance.columnCount);
+        } catch (e) {
+          console.error(e.message);
+        }
+      });
+    </script>
+</body>
+</html>
