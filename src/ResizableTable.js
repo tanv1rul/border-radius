@@ -15,7 +15,8 @@
     'use strict';
 
     class ResizableTable {
-        constructor(targetElementOrSelector) {
+        constructor(targetElementOrSelector, options) {
+            this.options = Object.assign({}, { forceFixedLayout: true, minColumnWidth: 20 }, options);
             this.isInitialized = false;
             this.isResizing = false;
             this.startX = 0;
@@ -61,43 +62,63 @@
                 console.warn('ResizableTable: Already initialized.');
                 return;
             }
-            this.originalTableState = this.table.cloneNode(true);
 
-            let head = this.table.tHead;
-            if (!head && this.table.tBodies && this.table.tBodies.length > 0 && this.table.tBodies[0].rows.length > 0) {
-                this.headerRow = this.table.tBodies[0].rows[0];
-                console.warn("ResizableTable: No <thead> found. Using first <tr> in <tbody> as header.");
-            } else if (head) {
-                this.headerRow = head.rows.length > 0 ? head.rows[0] : null;
+            const head = this.table.tHead;
+            if (!head || head.rows.length === 0) {
+                throw new Error("ResizableTable: <table> must have a <thead> section with at least one row.");
             }
 
+            this.headerRow = head.rows[0];
+            // The check above ensures headerRow is now always assigned from a valid thead.
+            // The following check for !this.headerRow is technically redundant if the above logic is sound,
+            // but kept for safety, though it should ideally never be triggered.
             if (!this.headerRow) {
-                console.error("ResizableTable: No header row found (no <thead> or <tbody> rows).");
-                return;
+                // This case should ideally not be reached if the previous logic is correct.
+                // If it is, it implies an unexpected state (e.g. tHead exists but tHead.rows[0] is nullish).
+                console.error("ResizableTable: Critical error - Header row could not be determined despite checks.");
+                return; // Abort initialization
             }
 
-            const headerCells = this.headerRow ? Array.from(this.headerRow.cells) : [];
+            const headerCells = Array.from(this.headerRow.cells);
             this.columnCount = headerCells.length;
 
-            if (this.columnCount === 0 && this.headerRow) {
-                console.warn("ResizableTable: No columns found in the header row.");
+            if (this.columnCount === 0) { // this.headerRow is guaranteed by this point
+                // Throw an error to abort initialization, as a table with no header columns is not usable.
+                throw new Error("ResizableTable: No columns (th elements) found in the header row. Initialization aborted.");
             }
 
-            this.table.style.tableLayout = 'fixed';
+            if (this.options.forceFixedLayout) {
+                this.table.style.tableLayout = 'fixed';
+                console.info("ResizableTable: Applying 'table-layout: fixed'.");
+            } else {
+                console.info("ResizableTable: Not forcing 'table-layout: fixed' due to options. Table will use 'auto' layout by default or its CSS-defined layout.");
+            }
             this.columnWidths = [];
 
-            if (this.headerRow && this.headerRow.cells.length > 0) {
-                const headerCells = Array.from(this.headerRow.cells);
+            // Initialize column widths based on their current computed styles
+            // This entire block is critical for basic setup.
+            try {
+                // Note: headerCells is already defined above. No need to redefine.
                 headerCells.forEach((cell, index) => {
-                    try {
-                        const computedWidth = window.getComputedStyle(cell).width;
-                        this.columnWidths[index] = parseFloat(computedWidth);
-                        cell.style.width = this.columnWidths[index] + 'px';
-                        console.log(`ResizableTable: Column ${index} - Initial computed width: ${computedWidth}, Set width: ${cell.style.width}`);
-                    } catch (error) {
-                        console.error(`ResizableTable: Error initializing width for column ${index}: `, error);
+                    // Each cell's width calculation is critical. If one fails,
+                    // the overall layout might be compromised.
+                    // The individual try-catch within the loop is removed in favor of catching at this higher level.
+                    const computedWidth = window.getComputedStyle(cell).width;
+                    const parsedWidth = parseFloat(computedWidth);
+                    if (isNaN(parsedWidth) || parsedWidth < 0) {
+                        // Log the problematic value and throw to indicate critical failure.
+                        console.error(`ResizableTable: Invalid computed width "${computedWidth}" (parsed as ${parsedWidth}) for column ${index}.`);
+                        throw new Error(`ResizableTable: Failed to parse valid width for column ${index}.`);
                     }
+                    this.columnWidths[index] = parsedWidth;
+                    cell.style.width = parsedWidth + 'px';
+                    // console.log(`ResizableTable: Column ${index} - Initial computed width: ${computedWidth}, Set width: ${cell.style.width}`);
                 });
+            } catch (error) {
+                // If any error occurs during the critical width initialization, log it and re-throw to abort.
+                console.error("ResizableTable: Critical error during initial column width calculation. Initialization aborted.", error);
+                // Re-throw the original error or a new one to ensure initialization stops.
+                throw new Error("ResizableTable: Failed to initialize column widths. " + (error.message || ""));
             }
 
             this._createResizeHandles();
@@ -116,48 +137,88 @@
                 this.resizeHandles = [];
 
                 headerCells.forEach((th, index) => {
-                    const rSpan = th.rowSpan;
-                    const cSpan = th.colSpan;
+                    try {
+                        const rSpan = th.rowSpan;
+                        const cSpan = th.colSpan;
 
-                    if (rSpan > 1) {
-                        console.warn(`ResizableTable: Header cell at index ${index} ("${th.textContent.trim()}") has rowspan="${rSpan}". Advanced rowspan handling is not yet fully implemented and might affect layout.`);
+                        if (rSpan > 1) {
+                            console.warn(`ResizableTable: Header cell at index ${index} ("${th.textContent.trim()}") has rowspan="${rSpan}". While the resize handle will match the cell's height, resizing columns with rowspan may cause layout misalignments in other rows. Full rowspan support is not yet implemented.`);
+                        }
+                        if (cSpan > 1) {
+                            console.warn(`ResizableTable: Header cell at index ${index} ("${th.textContent.trim()}") has colspan="${cSpan}". Resizing columns involved in a colspan may lead to unpredictable behavior or may not work correctly, especially for cells not starting the span. Full colspan support is not yet implemented.`);
+                        }
+
+                        // Ensure th has an ID for ARIA attributes
+                        if (!th.id) {
+                            th.id = `rt-header-${this.table.id || 'table'}-${index}`; // Generate a unique ID if not present
+                        }
+
+                        // Ensure the cell is positioned to contain the handle correctly.
+                        const cellPosition = window.getComputedStyle(th).position;
+                        if (cellPosition === 'static') { // Only override if static, other positions like 'relative', 'absolute', 'fixed' are fine.
+                            th.style.position = 'relative';
+                        }
+
+                        const handle = document.createElement('div');
+                        handle.className = 'rt-resize-handle';
+                        handle.dataset.columnIndex = index;
+
+                        // Accessibility attributes for resize handle
+                        handle.setAttribute('tabindex', '0');
+                        handle.setAttribute('role', 'separator');
+                        handle.setAttribute('aria-orientation', 'vertical');
+                        handle.setAttribute('aria-controls', th.id);
+                        handle.setAttribute('aria-labelledby', th.id); // Assumes th content is the label
+
+                        const currentColumnWidth = this.columnWidths[index] !== undefined ? this.columnWidths[index] : parseFloat(window.getComputedStyle(th).width);
+                        handle.setAttribute('aria-valuenow', currentColumnWidth.toFixed(0));
+                        handle.setAttribute('aria-valuemin', String(this.options.minColumnWidth));
+                        handle.setAttribute('aria-valuetext', `${currentColumnWidth.toFixed(0)} pixels`);
+
+                        // Fundamental positioning and dynamic styles (kept inline)
+                        handle.style.position = 'absolute';
+                        handle.style.right = '0px';
+                        handle.style.top = '0px';
+                        handle.style.height = th.offsetHeight + 'px'; // Dynamic
+                        handle.style.touchAction = 'none'; // Functional
+
+                        // Styles to be moved to CSS:
+                        // handle.style.width = '5px';
+                        // handle.style.cursor = 'col-resize';
+                        // handle.style.backgroundColor = 'rgba(100, 100, 100, 0.2)';
+                        // handle.style.zIndex = '10';
+
+                        handle.addEventListener('mousedown', this._onMouseDown);
+                        handle.addEventListener('touchstart', this._onTouchStart, { passive: false });
+
+                        // Define and store the keydown listener for easy removal in destroy
+                        handle._rtKeyDownListener = (event) => {
+                            // console.log("Resize handle keydown event:", event.key, "on column", index);
+                            if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                                event.preventDefault();
+                                // Placeholder for actual keyboard resizing logic
+                                console.log(`Keyboard resize attempt on column ${index} with ${event.key}. Not implemented.`);
+                                // Future: Implement actual keyboard resizing logic here.
+                                // This would involve updating the column width, potentially by a fixed step,
+                                // and then calling _updateColumnWidth or similar, ensuring ARIA attributes are updated.
+                            }
+                        };
+                        handle.addEventListener('keydown', handle._rtKeyDownListener);
+
+                        th.appendChild(handle);
+                        this.resizeHandles[index] = handle;
+                        // console.log(`ResizableTable: Created resize handle for column ${index}`);
+                    } catch (cellError) {
+                        console.error(`ResizableTable: Error creating resize handle for column ${index}. Skipping this handle.`, cellError);
+                        // Continue to the next iteration to try and create handles for other columns.
                     }
-                    if (cSpan > 1) {
-                        console.warn(`ResizableTable: Header cell at index ${index} ("${th.textContent.trim()}") has colspan="${cSpan}". Column resizing might behave unexpectedly. Advanced colspan handling is not yet fully implemented.`);
-                    }
-
-                    const cellPosition = window.getComputedStyle(th).position;
-                    if (cellPosition !== 'relative' && cellPosition !== 'absolute' && cellPosition !== 'fixed') {
-                        th.style.position = 'relative';
-                        console.log(`ResizableTable: Set position:relative on header cell ${index}`);
-                    }
-
-                    const handle = document.createElement('div');
-                    handle.className = 'rt-resize-handle';
-                    handle.dataset.columnIndex = index;
-
-                    handle.style.position = 'absolute';
-                    handle.style.right = '0px';
-                    handle.style.top = '0px';
-                    handle.style.width = '5px';
-                    handle.style.height = th.offsetHeight + 'px';
-                    handle.style.cursor = 'col-resize';
-                    handle.style.backgroundColor = 'rgba(100, 100, 100, 0.2)';
-                    handle.style.zIndex = '10';
-                    handle.style.touchAction = 'none'; // Prevent scrolling during touch drag
-
-                    // Replace direct mousedown with new setup
-                    // handle.addEventListener('mousedown', this._onMouseDown);
-                    handle.addEventListener('mousedown', this._onMouseDown); // This now calls _onDragStart
-                    handle.addEventListener('touchstart', this._onTouchStart, { passive: false }); // passive: false to allow preventDefault
-                    console.log(`ResizableTable: Applied touch-action: none to handle for column ${index}`);
-
-                    th.appendChild(handle);
-                    this.resizeHandles.push(handle);
-                    console.log(`ResizableTable: Created resize handle for column ${index}`);
                 });
             } catch (error) {
-                console.error("ResizableTable: Error creating resize handles: ", error);
+                // This outer catch handles errors like `this.headerRow.cells` not being iterable,
+                // or other unexpected issues outside the loop.
+                console.error("ResizableTable: Critical error during resize handles creation process.", error);
+                // Depending on severity, might re-throw or ensure isInitialized remains false.
+                // For now, just logging, as individual handle errors are caught inside.
             }
         }
 
@@ -172,37 +233,55 @@
                 this.collapseToggles = []; // Initialize if you plan to store them
 
                 headerCells.forEach((th, index) => {
-                    // Ensure th is relatively positioned (should be by _createResizeHandles)
-                    if (window.getComputedStyle(th).position === 'static') {
-                        th.style.position = 'relative';
-                        console.warn(`ResizableTable: Header cell ${index} was static, forced to relative for collapse toggle.`);
+                    try {
+                        // Ensure th is relatively positioned (should be by _createResizeHandles, but double check)
+                        if (window.getComputedStyle(th).position === 'static') {
+                            th.style.position = 'relative';
+                            // console.warn(`ResizableTable: Header cell ${index} was static, forced to relative for collapse toggle.`);
+                        }
+
+                        // Ensure th has an ID (likely already set by _createResizeHandles, but good practice)
+                        if (!th.id) {
+                            th.id = `rt-header-${this.table.id || 'table'}-${index}`;
+                        }
+
+                        const toggle = document.createElement('button');
+                        toggle.className = 'rt-collapse-toggle';
+                        toggle.dataset.columnIndex = index;
+
+                        // ARIA attributes for collapse toggle button
+                        // Initial state is expanded, so aria-expanded is true unless already collapsed
+                        const isCollapsed = this.collapsedColumns[index] === true;
+                        toggle.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+                        toggle.setAttribute('aria-controls', th.id);
+
+                        // Minimal inline styles for positioning (as per spec)
+                        toggle.style.position = 'absolute';
+                        toggle.style.left = '5px';
+                        toggle.style.top = '50%';
+                        toggle.style.transform = 'translateY(-50%)';
+                        // All other styles (background, border, padding, font, color, textAlign, cursor, width, height)
+                        // are expected to be handled by external CSS via the '.rt-collapse-toggle' class.
+
+                        // Visual indicators (+/-) are set in _onCollapseToggle and also here for initial state
+                        toggle.innerHTML = isCollapsed ? '+' : '-';
+                        toggle.title = `Collapse/Expand column ${th.textContent.trim() || index + 1}`;
+
+
+                        toggle.addEventListener('click', this._onCollapseToggle);
+
+                        th.appendChild(toggle);
+                        this.collapseToggles[index] = toggle; // Store by index
+                        // console.log(`ResizableTable: Created collapse toggle for column ${index}`);
+                    } catch (cellError) {
+                        console.error(`ResizableTable: Error creating collapse toggle for column ${index}. Skipping this toggle.`, cellError);
+                        // Continue to the next iteration.
                     }
-
-                    const toggle = document.createElement('span');
-                    toggle.className = 'rt-collapse-toggle';
-                    toggle.dataset.columnIndex = index;
-
-                    // Basic styling for the toggle
-                    toggle.style.position = 'absolute';
-                    toggle.style.left = '5px';
-                    toggle.style.top = '50%';
-                    toggle.style.transform = 'translateY(-50%)';
-                    toggle.style.width = '10px';
-                    toggle.style.height = '10px';
-                    toggle.style.backgroundColor = '#007bff';
-                    toggle.style.border = '1px solid #0056b3';
-                    toggle.style.cursor = 'pointer';
-                    toggle.innerHTML = '-'; // Represents "collapse"
-                    toggle.title = `Collapse/Expand column ${th.textContent.trim() || index + 1}`;
-
-                    toggle.addEventListener('click', this._onCollapseToggle);
-
-                    th.appendChild(toggle);
-                    this.collapseToggles.push(toggle); // Store reference
-                    console.log(`ResizableTable: Created collapse toggle for column ${index}`);
                 });
             } catch (error) {
-                console.error("ResizableTable: Error creating collapse toggles: ", error);
+                // This outer catch handles errors like `this.headerRow.cells` not being iterable,
+                // or other unexpected issues outside the loop.
+                console.error("ResizableTable: Critical error during collapse toggles creation process.", error);
             }
         }
 
@@ -257,6 +336,7 @@
                     }
                 });
                 event.currentTarget.innerHTML = '+';
+                event.currentTarget.setAttribute('aria-expanded', 'false');
                 event.currentTarget.title = `Expand column ${headerCell ? headerCell.textContent.trim() : columnIndex + 1}`;
                 console.log(`ResizableTable: Column ${columnIndex} collapsed.`);
 
@@ -268,11 +348,9 @@
                     // ensuring it retains its previous size (either from original layout, resize, or previous collapse).
                     if (typeof this.columnWidths[columnIndex] === 'number') {
                         headerCell.style.width = this.columnWidths[columnIndex] + 'px';
-                        console.log(`ResizableTable: Restored width ${this.columnWidths[columnIndex]}px to column ${columnIndex} after expand.`);
+                        // console.log(`ResizableTable: Restored width ${this.columnWidths[columnIndex]}px to column ${columnIndex} after expand.`);
                     } else {
-                        // If no width was stored (e.g. table never resized, column never collapsed before initially)
-                        // it will revert to its CSS-defined width or 'auto'.
-                        console.log(`ResizableTable: No specific width stored for column ${columnIndex}. Reverting to default/CSS width on expand.`);
+                        // console.log(`ResizableTable: No specific width stored for column ${columnIndex}. Reverting to default/CSS width on expand.`);
                     }
                 }
                 tableRows.forEach(row => {
@@ -281,6 +359,7 @@
                     }
                 });
                 event.currentTarget.innerHTML = '-';
+                event.currentTarget.setAttribute('aria-expanded', 'true');
                 event.currentTarget.title = `Collapse column ${headerCell ? headerCell.textContent.trim() : columnIndex + 1}`;
                 console.log(`ResizableTable: Column ${columnIndex} expanded.`);
             }
@@ -400,18 +479,91 @@
             const deltaX = currentX - this.startX;
             let newWidth = this.startWidth + deltaX;
 
-            const minWidth = 20; // px - TODO: Make configurable
+            const minWidth = this.options.minColumnWidth;
             if (newWidth < minWidth) {
                 newWidth = minWidth;
             }
 
             const th = this.headerRow.cells[this.currentColumnIndex];
             if (th) {
-                // Note: If the current column were to be collapsed mid-drag (e.g. via a hypothetical keyboard shortcut),
-                // accessing properties of the hidden th or setting its width might be problematic or have no visible effect
-                // until expanded. Currently, collapse is via toggle click, which should interrupt resizing.
                 th.style.width = newWidth + 'px';
+
+                // Update ARIA attributes on the corresponding resize handle
+                const handle = this.resizeHandles[this.currentColumnIndex]; // Assumes resizeHandles is an array/object keyed by index
+                if (handle) {
+                    handle.setAttribute('aria-valuenow', newWidth.toFixed(0));
+                    handle.setAttribute('aria-valuetext', `${newWidth.toFixed(0)} pixels`);
+                }
             }
+        }
+
+        destroy() {
+            if (!this.isInitialized) {
+                // console.info("ResizableTable: Instance not initialized or already destroyed.");
+                return;
+            }
+
+            // Handle active resizing cleanup
+            if (this.isResizing) {
+                if (this.isTouchEvent) {
+                    document.removeEventListener('touchmove', this._onDragMoveWrapper);
+                    document.removeEventListener('touchend', this._onDragEndWrapper);
+                    document.removeEventListener('touchcancel', this._onDragEndWrapper);
+                } else {
+                    document.removeEventListener('mousemove', this._onDragMoveWrapper);
+                    document.removeEventListener('mouseup', this._onDragEndWrapper);
+                }
+                this.isResizing = false;
+                // Reset drag-related properties as well for good measure
+                this.startX = 0;
+                this.startWidth = 0;
+                this.lastMouseX = 0;
+                this.currentColumnIndex = -1;
+                this.isTouchEvent = false;
+            }
+
+            // Remove resize handles and their event listeners
+            if (this.resizeHandles) { // Check if the object exists
+                Object.values(this.resizeHandles).forEach(handle => {
+                    if (handle) {
+                        handle.removeEventListener('mousedown', this._onMouseDown);
+                        handle.removeEventListener('touchstart', this._onTouchStart);
+                        if (handle._rtKeyDownListener) { // Check if the listener was stored
+                            handle.removeEventListener('keydown', handle._rtKeyDownListener);
+                        }
+                        if (handle.parentNode) {
+                            handle.parentNode.removeChild(handle);
+                        }
+                    }
+                });
+                this.resizeHandles = {}; // Reset to an empty object
+            }
+
+            // Remove collapse toggles and their event listeners
+            if (this.collapseToggles) { // Check if the object exists
+                Object.values(this.collapseToggles).forEach(toggle => {
+                    if (toggle) {
+                        toggle.removeEventListener('click', this._onCollapseToggle);
+                        if (toggle.parentNode) {
+                            toggle.parentNode.removeChild(toggle);
+                        }
+                    }
+                });
+                this.collapseToggles = {}; // Reset to an empty object
+            }
+
+            // Note: Reverting table.style.tableLayout or cell.style.position that were
+            // set by this script would require storing their original values during init.
+            // This is not currently implemented.
+
+            // Reset internal state
+            this.columnWidths = [];
+            this.collapsedColumns = {};
+            // this.headerRow = null; // Might be useful if table element itself is not destroyed by user
+            // this.table = null; // Avoid nulling out if user might re-init, though destroy implies full cleanup.
+
+            this.isInitialized = false;
+            console.info("ResizableTable: Instance destroyed.");
         }
     }
 
