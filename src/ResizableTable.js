@@ -56,6 +56,12 @@
             }
 
             this.table = tableElement;
+            // Generate an ID for the table if it doesn't have one
+            if (!this.table.id) {
+                this.table.id = `resizable-table-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+            }
+            this.localStorageKey = `resizable-table-widths-${this.table.id}`;
+
             this.init();
 
             this._onMouseDown = this._onMouseDown.bind(this);
@@ -150,7 +156,77 @@
 
             this._createResizeHandles();
             this._createCollapseToggles();
+
+            // Try to load and apply saved column widths
+            const savedWidths = this._loadColumnWidths();
+            if (savedWidths) {
+                this._applyColumnWidths(savedWidths);
+            }
+
             this.isInitialized = true;
+        }
+
+        _saveColumnWidths() {
+            if (typeof localStorage !== 'undefined') {
+                try {
+                    localStorage.setItem(this.localStorageKey, JSON.stringify(this.columnWidths));
+                    console.log(`ResizableTable: Saved column widths for table ${this.table.id}`, this.columnWidths);
+                } catch (e) {
+                    console.error('ResizableTable: Error saving column widths to localStorage.', e);
+                }
+            }
+        }
+
+        _loadColumnWidths() {
+            if (typeof localStorage !== 'undefined') {
+                try {
+                    const storedWidths = localStorage.getItem(this.localStorageKey);
+                    if (storedWidths) {
+                        const parsedWidths = JSON.parse(storedWidths);
+                        console.log(`ResizableTable: Loaded column widths for table ${this.table.id}`, parsedWidths);
+                        return parsedWidths;
+                    }
+                } catch (e) {
+                    console.error('ResizableTable: Error loading column widths from localStorage.', e);
+                }
+            }
+            return null;
+        }
+
+        _applyColumnWidths(widths) {
+            if (!this.headerRow || widths.length !== this.columnCount) {
+                console.warn('ResizableTable: Cannot apply saved widths. Header row or column count mismatch.');
+                return;
+            }
+
+            this.columnWidths = [...widths]; // Update the internal tracking array
+
+            const headerCells = Array.from(this.headerRow.cells);
+            let currentActualColumnIndex = 0;
+
+            headerCells.forEach((th, headerCellIndex) => {
+                const colSpan = th.colSpan || 1;
+                let headerCellNewWidth = 0;
+
+                for (let i = 0; i < colSpan; i++) {
+                    const actualColIdx = currentActualColumnIndex + i;
+                    if (actualColIdx < this.columnWidths.length && typeof this.columnWidths[actualColIdx] === 'number') {
+                        headerCellNewWidth += this.columnWidths[actualColIdx];
+                    } else {
+                        // Fallback if a width is missing, though this shouldn't happen if saved correctly
+                        console.warn(`ResizableTable: _applyColumnWidths - Missing width for actual column ${actualColIdx}. Using current computed width for this segment.`);
+                        const thComputedWidth = parseFloat(window.getComputedStyle(th).width);
+                        headerCellNewWidth += thComputedWidth / colSpan; // Distribute current width
+                    }
+                }
+
+                if (headerCellNewWidth > 0) {
+                    th.style.width = headerCellNewWidth + 'px';
+                    console.log(`ResizableTable: _applyColumnWidths - Set width of header cell ${headerCellIndex} (colspan ${colSpan}) to ${headerCellNewWidth.toFixed(2)}px`);
+                }
+                currentActualColumnIndex += colSpan;
+            });
+            console.log('ResizableTable: Applied column widths from localStorage.', this.columnWidths);
         }
 
         _createResizeHandles() {
@@ -481,16 +557,29 @@
             // This wrapper will call _onDragEnd (new method similar to old _onMouseUp)
 
             // For now, directly use logic from old _onMouseUp
-            this._updateColumnWidth(); // Final update
+            this._updateColumnWidth(true); // Final update, force synchronous DOM write
 
-            const th = this.headerRow.cells[this.currentColumnIndex]; // currentColumnIndex should be valid
-            if (th) {
-                const finalWidth = parseFloat(th.style.width);
-                this.columnWidths[this.currentColumnIndex] = finalWidth;
-                console.log(`ResizableTable: DragEnd - Column ${this.currentColumnIndex} finalized width to: ${finalWidth.toFixed(2)}px. Stored: ${this.columnWidths[this.currentColumnIndex].toFixed(2)}px. isTouch: ${this.isTouchEvent}`);
-            } else {
-                console.warn(`ResizableTable: DragEnd - Could not find header cell for column ${this.currentColumnIndex} to finalize width.`);
+            // this.currentColumnIndex is the actual column index that was resized.
+            // this.columnWidths should already be updated by _updateColumnWidth.
+            if (this.currentColumnIndex !== -1 && this.columnWidths[this.currentColumnIndex] !== undefined) {
+                 console.log(`ResizableTable: DragEnd - Actual column ${this.currentColumnIndex} finalized width to: ${this.columnWidths[this.currentColumnIndex].toFixed(2)}px. isTouch: ${this.isTouchEvent}`);
+                 this._saveColumnWidths(); // Save widths after resize
+            } else if (this.currentColumnIndex !== -1) {
+                // This case might indicate an issue if currentColumnIndex is set but its width is not in columnWidths
+                const headerCellWithHandle = this.headerRow.cells[this.currentHeaderCellIndex];
+                if (headerCellWithHandle) {
+                    const finalThWidth = parseFloat(headerCellWithHandle.style.width);
+                     // This is tricky because finalThWidth is for the entire cell, which might span multiple columns.
+                     // _updateColumnWidth should have correctly updated the specific actual column's width in this.columnWidths.
+                     // So, relying on this.columnWidths[this.currentColumnIndex] is preferred.
+                    console.warn(`ResizableTable: DragEnd - Column ${this.currentColumnIndex} width might not be accurately captured in columnWidths array directly from TH width if colspan is involved. TH width: ${finalThWidth.toFixed(2)}px. Relying on earlier update to columnWidths.`);
+                    // Attempt to save anyway, assuming _updateColumnWidth did its job.
+                    this._saveColumnWidths();
+                } else {
+                    console.warn(`ResizableTable: DragEnd - Could not find header cell for column ${this.currentHeaderCellIndex} to finalize width, and currentColumnIndex is ${this.currentColumnIndex}.`);
+                }
             }
+
 
             this.isResizing = false;
 

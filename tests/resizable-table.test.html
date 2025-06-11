@@ -78,6 +78,12 @@
         if (currentTableInstance && currentTableInstance._updateColumnWidth && currentTableInstance._updateColumnWidth.isSpy) {
             currentTableInstance._updateColumnWidth = currentTableInstance._updateColumnWidth.originalFn;
         }
+        // Clear localStorage for the default table IDs used in tests
+        if (typeof localStorage !== 'undefined') {
+            localStorage.removeItem('resizable-table-widths-table-ls-1');
+            localStorage.removeItem('resizable-table-widths-table-ls-colspan');
+            // Potentially clear others if more test tables use LS
+        }
     }
 
     function createTableHTML(id, headerHTML) {
@@ -135,6 +141,10 @@
         await testDeferDomWritesTrue();
         await testDeferDomWritesFalse();
         await testDeferDomWritesTrueFinalUpdateSync();
+
+        // IV. LocalStorage Persistence
+        await testLocalStorageSaveAndRestore();
+        await testLocalStorageWithColspan();
 
         console.log("--- Test Summary ---");
         console.log(`Total Tests: ${testsRun}, Passed: ${testsPassed}, Failed: ${testsRun - testsPassed}`);
@@ -415,6 +425,120 @@
 
     // --- Run All Tests ---
     document.addEventListener('DOMContentLoaded', runTests);
+
+    // --- IV. LocalStorage Persistence Tests ---
+
+    async function testLocalStorageSaveAndRestore() {
+        resetTestEnv();
+        const tableId = "table-ls-1";
+        console.log(`--- Test 4.1: LocalStorage Save and Restore (table: ${tableId}) ---`);
+        const tableHTML = createTableHTML(tableId, '<tr><th id="thLS1_1">LS1_C1</th><th id="thLS1_2">LS1_C2</th></tr>');
+        document.getElementById('test-container').innerHTML = tableHTML;
+        let tableEl = document.getElementById(tableId);
+        currentTableInstance = new ResizableTable(tableEl);
+
+        const initialWidths = [...currentTableInstance.columnWidths];
+        assert(initialWidths.length === 2 && initialWidths[0] > 0 && initialWidths[1] > 0, "Initial widths are set");
+
+        const handle = currentTableInstance.resizeHandles[0]; // Resize first column
+        const startX = 150;
+        const deltaX = 25;
+
+        simulateMouseEvent('mousedown', handle, startX);
+        currentTableInstance.isResizing = true; // Manual state for test
+        currentTableInstance.startX = startX;
+        currentTableInstance.currentColumnIndex = parseInt(handle.dataset.columnIndex);
+        currentTableInstance.currentHeaderCellIndex = 0;
+        currentTableInstance.startWidth = currentTableInstance.columnWidths[currentTableInstance.currentColumnIndex];
+        currentTableInstance.lastMouseX = startX + deltaX;
+        currentTableInstance._updateColumnWidth(true); // force sync
+        simulateMouseEvent('mouseup', document, startX + deltaX);
+        currentTableInstance.isResizing = false;
+
+        const resizedWidths = [...currentTableInstance.columnWidths];
+        assert(!approximatelyEqual(resizedWidths[0], initialWidths[0]), `Width of first column changed. Initial: ${initialWidths[0]}, Resized: ${resizedWidths[0]}`);
+
+        // Check localStorage (basic check, assumes ResizableTable uses its localStorageKey correctly)
+        const storedData = localStorage.getItem(currentTableInstance.localStorageKey);
+        assert(storedData !== null, "Data was saved to localStorage");
+        let parsedStoredWidths = [];
+        try {
+            parsedStoredWidths = JSON.parse(storedData);
+        } catch(e) { /* ignore error for assert below */ }
+        assert(parsedStoredWidths.length === 2 && approximatelyEqual(parsedStoredWidths[0], resizedWidths[0]), "Stored data in localStorage matches resized widths");
+
+        // --- Simulate page reload by creating a new instance ---
+        console.log("Simulating page reload by creating new instance for table: " + tableId);
+        document.getElementById('test-container').innerHTML = tableHTML; // Re-add IDENTICAL table HTML
+        tableEl = document.getElementById(tableId); // Get the new table element
+        const newTableInstance = new ResizableTable(tableEl);
+
+        assert(newTableInstance.columnWidths.length === 2, "New instance has 2 column widths");
+        assert(approximatelyEqual(newTableInstance.columnWidths[0], resizedWidths[0]),
+            `Restored width of C1 (${newTableInstance.columnWidths[0].toFixed(1)}) matches resized width (${resizedWidths[0].toFixed(1)})`);
+        assert(approximatelyEqual(newTableInstance.columnWidths[1], resizedWidths[1]),
+            `Restored width of C2 (${newTableInstance.columnWidths[1].toFixed(1)}) matches original (since not resized) (${resizedWidths[1].toFixed(1)})`);
+
+        // Cleanup specific key
+        localStorage.removeItem(currentTableInstance.localStorageKey);
+        localStorage.removeItem(newTableInstance.localStorageKey); // just in case ID generation was different (it shouldn't be)
+    }
+
+    async function testLocalStorageWithColspan() {
+        resetTestEnv();
+        const tableId = "table-ls-colspan";
+        console.log(`--- Test 4.2: LocalStorage with Colspan (table: ${tableId}) ---`);
+        const tableHTML = createTableHTML(tableId, '<tr><th id="thLSC_A" colspan="2">A (Cols 0,1)</th><th id="thLSC_B">B (Col 2)</th></tr>');
+        document.getElementById('test-container').innerHTML = tableHTML;
+        let tableEl = document.getElementById(tableId);
+        currentTableInstance = new ResizableTable(tableEl);
+
+        assert(currentTableInstance.columnCount === 3, "Colspan table: Correct columnCount (3)");
+        const initialWidths = [...currentTableInstance.columnWidths];
+        assert(initialWidths.length === 3 && initialWidths.every(w => w > 0), "Colspan table: Initial widths are set for 3 columns");
+
+        // Resize the second actual column (index 1), which is the right part of the "A" colspan header
+        const thA = document.getElementById('thLSC_A');
+        const handleCol1 = thA.querySelector('.rt-resize-handle'); // Handle on colspan TH targets last col in span
+        assert(parseInt(handleCol1.dataset.columnIndex) === 1, "Handle on colspan TH 'A' targets actual column 1");
+
+        const startX = 200;
+        const deltaX = -20; // Shrink
+
+        simulateMouseEvent('mousedown', handleCol1, startX);
+        currentTableInstance.isResizing = true;
+        currentTableInstance.startX = startX;
+        currentTableInstance.currentColumnIndex = 1; // Target actual column 1
+        currentTableInstance.currentHeaderCellIndex = 0; // Header cell 'A'
+        currentTableInstance.startWidth = currentTableInstance.columnWidths[1];
+        currentTableInstance.lastMouseX = startX + deltaX;
+        currentTableInstance._updateColumnWidth(true);
+        simulateMouseEvent('mouseup', document, startX + deltaX);
+        currentTableInstance.isResizing = false;
+
+        const resizedWidths = [...currentTableInstance.columnWidths];
+        assert(approximatelyEqual(resizedWidths[0], initialWidths[0]), `Colspan: Width of actual col 0 unchanged. Initial: ${initialWidths[0]}, Resized: ${resizedWidths[0]}`);
+        assert(!approximatelyEqual(resizedWidths[1], initialWidths[1]), `Colspan: Width of actual col 1 changed. Initial: ${initialWidths[1]}, Resized: ${resizedWidths[1]}`);
+        assert(approximatelyEqual(resizedWidths[1], initialWidths[1] + deltaX, 5), `Colspan: Width of actual col 1 changed by deltaX. Expected: ${initialWidths[1] + deltaX}, Got: ${resizedWidths[1]}`);
+        assert(approximatelyEqual(resizedWidths[2], initialWidths[2]), `Colspan: Width of actual col 2 unchanged. Initial: ${initialWidths[2]}, Resized: ${resizedWidths[2]}`);
+
+        // --- Simulate page reload ---
+        console.log("Simulating page reload for table with colspan: " + tableId);
+        document.getElementById('test-container').innerHTML = tableHTML; // Re-add IDENTICAL table HTML
+        tableEl = document.getElementById(tableId);
+        const newTableInstance = new ResizableTable(tableEl);
+
+        assert(newTableInstance.columnWidths.length === 3, "New colspan instance has 3 column widths");
+        assert(approximatelyEqual(newTableInstance.columnWidths[0], resizedWidths[0]),
+            `Colspan Restored: Col 0 width (${newTableInstance.columnWidths[0].toFixed(1)}) matches (${resizedWidths[0].toFixed(1)})`);
+        assert(approximatelyEqual(newTableInstance.columnWidths[1], resizedWidths[1]),
+            `Colspan Restored: Col 1 width (${newTableInstance.columnWidths[1].toFixed(1)}) matches (${resizedWidths[1].toFixed(1)})`);
+        assert(approximatelyEqual(newTableInstance.columnWidths[2], resizedWidths[2]),
+            `Colspan Restored: Col 2 width (${newTableInstance.columnWidths[2].toFixed(1)}) matches (${resizedWidths[2].toFixed(1)})`);
+
+        localStorage.removeItem(currentTableInstance.localStorageKey);
+        localStorage.removeItem(newTableInstance.localStorageKey);
+    }
 
 </script>
 </body>
