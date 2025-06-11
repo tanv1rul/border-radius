@@ -84,6 +84,7 @@ To use the ResizableTable plugin, include the script in your HTML file and then 
     });
     ```
 
+
 4.  **Handling Table Overflow / Horizontal Scrolling (Automatic Parent Styling):**
 
     When columns are resized, the total width of the table might exceed the width of its containing element. To enable horizontal scrolling, the plugin now *automatically attempts* to style the table's immediate parent container.
@@ -132,6 +133,7 @@ To use the ResizableTable plugin, include the script in your HTML file and then 
     ```
     In this example, `ResizableTable.js` will attempt to apply `overflow-x: auto;` to the `div` with class `table-wrapper`. If the sum of column widths in `myResizableTable` exceeds `600px`, the `div` should then display a horizontal scrollbar.
 
+
 ---
 
 **Note:** This project is currently under active development. Features and API are subject to change.
@@ -169,10 +171,10 @@ To use the ResizableTable plugin, include the script in your HTML file and then 
     - [x] Initialize column widths from computed styles or explicitly set `cell.style.width`.
 - [~] 3. Rowspan and Colspan Handling
     - [x] Detect and log `rowspan`/`colspan` on header cells.
-    - [ ] Advanced handling logic (Not Implemented)
-- [ ] 4. Performance Optimization
-    - [ ] Optional throttling via user-defined `updateInterval` (Not Implemented)
-    - [ ] Defer DOM writes via `requestIdleCallback` (Not Implemented)
+    - [x] Advanced handling logic for colspan. Rowspan detection continues to log warnings.
+- [x] 4. Performance Optimization
+    - [x] Optional throttling via user-defined `updateInterval`.
+    - [x] Defer DOM writes via `requestIdleCallback` (experimental).
 
 ### PHASE 3: Collapsible Columns
 - [~] 1. Collapse Toggle Setup (`_createCollapseToggles()`, `_onCollapseToggle`)
