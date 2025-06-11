@@ -2,6 +2,8 @@
 
 A JavaScript plugin for making HTML tables resizable and collapsible.
 
+View a live demo of ResizableTable.js on our GitHub Pages site: [Live Demo](https://your-username.github.io/your-repository-name/)
+
 ## Features (Planned)
 
 *   Resizable columns
@@ -82,37 +84,55 @@ To use the ResizableTable plugin, include the script in your HTML file and then 
     });
     ```
 
-## Configuration Options
 
-The `ResizableTable` constructor accepts an optional second argument, an `options` object, to customize its behavior:
+4.  **Handling Table Overflow / Horizontal Scrolling (Automatic Parent Styling):**
 
-```javascript
-const options = {
-  resizeUpdateInterval: 0, // Default
-  deferDomWrites: false    // Default
-};
-const tableInstance = new ResizableTable('#myTable', options);
-```
+    When columns are resized, the total width of the table might exceed the width of its containing element. To enable horizontal scrolling, the plugin now *automatically attempts* to style the table's immediate parent container.
 
-Below are the available options:
+    Key points regarding this feature:
+    *   **Automatic Styling:** During initialization, the plugin inspects the `overflow-x` CSS property of the table's direct parent element.
+        *   If the parent's `overflow-x` is `visible` (the default for most elements), `initial`, or `unset`, the plugin will set `parent.style.overflowX = 'auto';`. A confirmation message is logged to the console.
+        *   If the parent already has an `overflow-x` value of `auto`, `scroll`, `hidden`, or any other value not listed above, the plugin will *not* change it and will log a warning message indicating that the existing style is being respected.
+    *   **Parent Container Width:** For the horizontal scrollbar to appear and function correctly, the parent container must have a defined `width` (e.g., `600px`, `50vw`) or `max-width` that the table can actually exceed. The plugin *does not* set any width on the parent container; this remains the responsibility of the user's CSS.
+    *   **Table Layout:** The plugin automatically sets `table-layout: fixed;` on the table itself. This is essential for predictable column resizing.
+    *   **Table Width:** The table's own CSS `width` should generally be `auto` (the default) or not constrained in a way that prevents it from growing larger than its parent (e.g., avoid `width: 100%;` if the parent has a fixed width and you want the table to cause an overflow).
 
-### `resizeUpdateInterval`
-*   **Type:** `Number`
-*   **Default:** `0`
-*   **Description:** Specifies the minimum interval in milliseconds between column width updates during a resize drag operation. When set to `0` (default), updates are driven by `requestAnimationFrame` for maximum smoothness. A positive value (e.g., `50` or `100`) throttles updates, potentially improving performance on complex tables or slower devices at the cost of visual smoothness.
-*   **Example:**
-    ```javascript
-    new ResizableTable('#myTable', { resizeUpdateInterval: 100 });
+    **Example HTML Setup:**
+
+    ```html
+    <!-- Ensure this div has a defined width via CSS or inline style -->
+    <div class="table-wrapper" style="width: 600px; border: 1px solid #ccc; /* Optional: to see container */">
+      <table id="myResizableTable">
+        <thead>
+          <tr>
+            <th>Very Wide Column 1</th>
+            <th>Very Wide Column 2</th>
+            <th>Very Wide Column 3</th>
+            <!-- Add more columns as needed -->
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Data for column 1</td>
+            <td>Data for column 2</td>
+            <td>Data for column 3</td>
+            <!-- Corresponding data cells -->
+          </tr>
+          <!-- More rows -->
+        </tbody>
+      </table>
+    </div>
+
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        new ResizableTable('#myResizableTable');
+        // The plugin will attempt to set 'overflow-x: auto;' on 'div.table-wrapper'
+        // if its current overflow-x is 'visible', 'initial', or 'unset'.
+      });
+    </script>
     ```
+    In this example, `ResizableTable.js` will attempt to apply `overflow-x: auto;` to the `div` with class `table-wrapper`. If the sum of column widths in `myResizableTable` exceeds `600px`, the `div` should then display a horizontal scrollbar.
 
-### `deferDomWrites`
-*   **Type:** `Boolean`
-*   **Default:** `false`
-*   **Description:** **Experimental.** When set to `true`, DOM write operations (updating column style widths) during resize are deferred using `requestIdleCallback`, if available in the browser. This is intended to free up the main thread, but may introduce a perceptible lag between the drag action and the visual update. The final update upon drag completion is always synchronous. Use with caution.
-*   **Example:**
-    ```javascript
-    new ResizableTable('#myTable', { deferDomWrites: true });
-    ```
 
 ---
 
