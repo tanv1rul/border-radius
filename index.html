@@ -3,37 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ResizableTable.js - jQuery Plugin for Resizable and Collapsible Tables</title>
-    <link rel="stylesheet" href="style.css">
+    <title>ResizableTable Example</title>
     <!-- <link rel="stylesheet" href="src/style.css"> -->
     <style>
+      body { font-family: sans-serif; margin: 20px; }
+      table { border-collapse: collapse; margin-bottom: 20px; }
+      th, td { padding: 4px 8px; border: 1px solid #ccc; text-align: left; }
+      th { background-color: #f4f4f4; }
+
       /* Placeholder styling */
       .rt-col-placeholder {
-        /* width is set by options.placeholderCellWidth via JS if usePlaceholdersForCollapse is true */
-        min-width: 10px; /* Fallback if width option is very small */
+        min-width: 10px;
         box-sizing: border-box;
         padding: 2px 4px;
         text-align: center;
         background-color: #f0f0f0;
         border: 1px dashed #ccc;
-        font-size: 0.8em; /* Smaller font for placeholder content like '+' */
+        font-size: 0.8em;
         color: #777;
       }
       th.rt-col-placeholder {
-        font-weight: normal; /* Placeholder header text shouldn't be bold typically */
+        font-weight: normal;
       }
-
-      /* Style for the main collapse toggle elements (created by JS) */
       .rt-collapse-toggle {
-          /* Base styles are applied in JS from options (size, color) */
-          /* Add any additional CSS-only styles or overrides here if needed */
-          font-family: monospace; /* Example: for better rendering of +/- symbols */
-          line-height: 1; /* Ensure tight fit if using text symbols */
+          font-family: monospace;
+          line-height: 1;
       }
-
-      /* Visual feedback for resize handles (created by JS) */
       .rt-resize-handle {
-        /* Base background-color is set via JS from options.resizeHandleColor */
         transition: background-color 0.15s ease-in-out;
       }
       .rt-resize-handle:hover {
@@ -42,125 +38,237 @@
       .rt-resize-handle.rt-active-handle {
         background-color: rgba(0, 0, 255, 0.4) !important;
       }
+      #controls button, #controls2 button { margin: 3px; padding: 5px 10px; }
+      #eventLog div { margin-bottom: 3px; border-bottom: 1px dotted #eee; padding-bottom: 2px; }
+      hr { margin: 30px 0; }
     </style>
 </head>
 <body>
-    <header>
-        <h1>ResizableTable.js</h1>
-        <p>A jQuery plugin for creating tables that are both resizable and collapsible, offering enhanced user interaction and data presentation.</p>
-    </header>
+    <h1>ResizableTable Example - Main Instance</h1>
 
-    <h2>Demonstration</h2>
-    <div class="table-container">
-      <table id="myTable" border="1">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Email</th>
-            <th>Country</th>
-            <th>Address</th>
-            <th>Notes</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>John Doe</td>
-            <td>john.doe@example.com</td>
-            <td>USA</td>
-            <td>123 Main St, Anytown</td>
-            <td>Met at conference.</td>
-          </tr>
-          <tr>
-            <td>Jane Smith</td>
-            <td>jane.smith@example.com</td>
-            <td>Canada</td>
-            <td>456 Oak Rd, Otherville</td>
-            <td>Potential client.</td>
-          </tr>
-          <tr>
-            <td>Peter Jones</td>
-            <td>peter.jones@example.com</td>
-            <td>UK</td>
-            <td>789 Pine Ln, Sometown</td>
-            <td>Follow up required.</td>
-          </tr>
-        </tbody>
-      </table>
+    <table id="myTable" style="width: 100%;">
+      <thead>
+        <tr>
+          <th rowspan="2">ID</th>
+          <th colspan="2">Product Details</th>
+          <th>Price</th>
+          <th rowspan="2">Stock Quantity</th>
+        </tr>
+        <tr>
+          <th>Product Name</th>
+          <th>Category</th>
+          <th>(Currency)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td>Super Mega Widget PRO XG 5000 Special Edition with lots of features</td>
+          <td rowspan="2">Gadgets</td>
+          <td>$99.99</td>
+          <td>150</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>Basic Widget Standard Issue for everyday use and simple tasks</td>
+          <!-- Category cell spanned from above -->
+          <td>$19.50</td>
+          <td>800</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>Another Item</td>
+          <td>Accessories</td>
+          <td>$5.00</td>
+          <td>20</td>
+        </tr>
+         <tr>
+          <td>4</td>
+          <td>Yet Another Product Entry with an even longer name to test wrapping</td>
+          <td>Miscellaneous Goods and Services International</td>
+          <td>$123.45</td>
+          <td>55</td>
+        </tr>
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="3"><strong>Totals / Summary Information</strong></td>
+          <td>$247.94</td>
+          <td>1025</td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <div id="controls" style="margin-top: 20px; padding: 10px; border: 1px solid #eee;">
+      <h3>Controls (Main Table)</h3>
+      <button id="btnToggleCol0">Toggle Column 0 (ID)</button>
+      <button id="btnToggleCol2">Toggle Column 2 (Category)</button>
+      <button id="btnSetCol1Width">Set Col 1 (Prod. Name) Width to 150px</button>
+      <button id="btnGetCol0State">Get Col 0 State</button>
+      <button id="btnDestroyTable">Destroy Table Instance</button>
+      <button id="btnReinitTable">Re-initialize Table</button>
+      <div id="stateOutput" style="margin-top: 10px; padding: 5px; border: 1px solid #ddd; min-height: 20px; background: #f9f9f9; white-space: pre-wrap; font-family: monospace;">
+        (State output will appear here or in console)
+      </div>
+      <h4>Event Log:</h4>
+      <div id="eventLog" style="height: 150px; overflow-y: scroll; border: 1px solid #ccc; padding: 5px; background: #fafafa; font-size: 0.9em; line-height: 1.4;">
+        (Events will appear here...)
+      </div>
     </div>
 
-    <h2>Usage</h2>
-    <p>Detailed usage instructions will be added here. For now, please refer to the README.md.</p>
+    <hr/>
 
-    <h2>Source Code</h2>
-    <p>The source code for ResizableTable.js is available on GitHub. You can find the repository <a href="#">here</a>.</p>
+    <h2>Second Table Example (Minimal Resizing, No Collapsing)</h2>
+    <table id="myTable2" style="width: 60%;">
+      <thead><tr><th>Column A</th><th>Column B</th><th>Column C</th></tr></thead>
+      <tbody>
+        <tr><td>Data A1</td><td>Data B1</td><td>Data C1 is quite long</td></tr>
+        <tr><td>Data A2</td><td>Data B2 has some more text</td><td>Data C2</td></tr>
+      </tbody>
+    </table>
+    <div id="controls2" style="margin-top: 10px;">
+        <button id="btnDestroyTable2">Destroy Table 2</button>
+        <button id="btnReinitTable2">Re-init Table 2</button>
+    </div>
+
 
     <script src="src/ResizableTable.js"></script>
     <script>
       document.addEventListener('DOMContentLoaded', function() {
-        try {
-          const tableInstance = new ResizableTable('#myTable', {
-            // Behavior options
-            enableResizing: true,
-            enableCollapsing: true,
-            usePlaceholdersForCollapse: true, // Try true or false to see different collapse modes
+        let tableInstance = null;
+        let tableInstance2 = null;
+        const stateOutputDiv = document.getElementById('stateOutput');
+        const eventLogDiv = document.getElementById('eventLog');
 
-            // Resizing options
-            minColumnWidth: 40, // Minimum width a column can be resized to
-            maxColumnWidth: 500, // Maximum width a column can be resized to
-            resizeHandleWidth: 10, // Visual width of the draggable resize handle
-            // resizeHandleColor: 'rgba(0,123,255,0.25)', // Example: Custom base color for handles
-
-            // Collapsing options
-            // collapseToggleSize: 12, // Example: Size of the clickable toggle button
-            // collapseToggleColor: 'green', // Example: Custom color for the toggle button
-            collapseToggleContentOpen: '&#x25BC;', // Downward triangle (▼) when column is expanded
-            collapseToggleContentClosed: '&#x25B6;', // Rightward triangle (▶) when column is collapsed/placeholder
-            placeholderCellWidth: 25, // Width of placeholder cells when a column is collapsed
-
-            // Event callbacks (examples)
-            onInit: function(data) {
-              console.log('Event: onInit - Table initialized!', data.instance);
-            },
-            onColumnResizeStart: function(data) {
-              console.log(`Event: onColumnResizeStart - Column ${data.columnIndex} resize started.`);
-            },
-            onColumnResized: function(data) {
-              console.log(`Event: onColumnResized - Column ${data.columnIndex} resized to ${data.newWidth}px.`);
-            },
-            onColumnCollapse: function(data) {
-              console.log(`Event: onColumnCollapse - Column ${data.columnIndex} collapsed.`);
-            },
-            onColumnExpand: function(data) {
-              console.log(`Event: onColumnExpand - Column ${data.columnIndex} expanded.`);
-            },
-            onBeforeDestroy: function(data) {
-              console.log('Event: onBeforeDestroy - Table about to be destroyed.', data.instance);
-            },
-            onColumnWidthSet: function(data) {
-              console.log(`Event: onColumnWidthSet - Column ${data.columnIndex} width set to ${data.newWidth}px by ${data.source}.`);
+        function logEventToPage(eventName, data, instanceId = 'Table 1') {
+          if (eventLogDiv) {
+            const entry = document.createElement('div');
+            let dataString = '';
+            if (data) {
+              const simplifiedData = {};
+              for (const key in data) {
+                if (key === 'instance' || key === 'originalEvent' || key === 'handle') {
+                  simplifiedData[key] = `[${typeof data[key]}]`;
+                } else {
+                  simplifiedData[key] = data[key];
+                }
+              }
+              dataString = JSON.stringify(simplifiedData);
             }
-          });
-
-          console.log('ResizableTable instance with comprehensive options:', tableInstance);
-
-          // Example of using public methods after initialization:
-          // setTimeout(() => {
-          //   if (tableInstance.isInitialized) {
-          //     console.log('Programmatically toggling column 0 after 2 seconds...');
-          //     tableInstance.toggleColumn(0);
-          //   }
-          // }, 2000);
-
-          // setTimeout(() => {
-          //   if (tableInstance.isInitialized) {
-          //     console.log('Programmatically setting column 1 width after 4 seconds...');
-          //     tableInstance.setColumnWidth(1, 150);
-          //   }
-          // }, 4000);
-
-        } catch (e) {
-          console.error("Error initializing ResizableTable:", e.message, e);
+            entry.textContent = `${new Date().toLocaleTimeString()} [${instanceId}]: ${eventName} ${dataString ? ' - ' + dataString : ''}`;
+            eventLogDiv.appendChild(entry);
+            eventLogDiv.scrollTop = eventLogDiv.scrollHeight;
+          }
         }
+
+        // Options for the main table instance
+        const mainTableOptions = {
+            enableResizing: true,             // Try: false (disables all resizing)
+            enableCollapsing: true,           // Try: false (disables all collapsing)
+            usePlaceholdersForCollapse: true, // Try: false (uses simple display:none for collapse)
+            minColumnWidth: 40,               // Minimum width a column can be resized to
+            maxColumnWidth: 500,              // Try: 100 (to see max width constraint)
+            resizeHandleWidth: 10,            // Visual width of the draggable resize handle
+            // resizeHandleColor: 'rgba(255,0,0,0.3)', // Example: Reddish handles
+            // collapseToggleSize: 15,        // Example: Size of the clickable toggle button
+            // collapseToggleColor: 'purple', // Example: Custom color for the toggle button
+            collapseToggleContentOpen: '&#x25BC;',
+            collapseToggleContentClosed: '&#x25B6;',
+            placeholderCellWidth: 25,         // Only active if usePlaceholdersForCollapse is true
+
+            onInit: function(data) { logEventToPage('init', data, 'Table 1'); },
+            onColumnResizeStart: function(data) { logEventToPage('onColumnResizeStart', data, 'Table 1'); },
+            onColumnResized: function(data) { logEventToPage('onColumnResized', data, 'Table 1'); },
+            onColumnCollapse: function(data) { logEventToPage('onColumnCollapse', data, 'Table 1'); },
+            onColumnExpand: function(data) { logEventToPage('onColumnExpand', data, 'Table 1'); },
+            onBeforeDestroy: function(data) { logEventToPage('onBeforeDestroy', data, 'Table 1'); },
+            onColumnWidthSet: function(data) { logEventToPage('onColumnWidthSet', data, 'Table 1'); }
+        };
+
+        function initializeMainResizableTable() {
+          try {
+            if (tableInstance && typeof tableInstance.destroy === 'function' && tableInstance.isInitialized) {
+                tableInstance.destroy();
+            }
+            if(stateOutputDiv) stateOutputDiv.textContent = "(State output will appear here or in console)";
+            if (eventLogDiv && !document.getElementById('myTable2')) eventLogDiv.innerHTML = '(Events will appear here...)'; // Clear log only if table2 not init
+
+            const tableElement = document.getElementById('myTable');
+            if (tableElement) tableElement.classList.remove('rt-destroyed');
+
+            tableInstance = new ResizableTable('#myTable', mainTableOptions);
+            if(stateOutputDiv && document.activeElement.id !== 'btnReinitTable2') stateOutputDiv.textContent = "Table 1 initialized/re-initialized.";
+
+          } catch (e) {
+            console.error("Error initializing Main ResizableTable:", e.message, e);
+            if(stateOutputDiv) stateOutputDiv.textContent = "Error initializing Table 1: " + e.message;
+          }
+        }
+
+        // --- Setup for Main Table Controls ---
+        document.getElementById('btnToggleCol0').addEventListener('click', function() {
+          if (tableInstance && tableInstance.isInitialized) tableInstance.toggleColumn(0);
+          else console.warn("Table 1 not initialized.");
+        });
+        document.getElementById('btnToggleCol2').addEventListener('click', function() {
+          if (tableInstance && tableInstance.isInitialized) tableInstance.toggleColumn(2);
+          else console.warn("Table 1 not initialized.");
+        });
+        document.getElementById('btnSetCol1Width').addEventListener('click', function() {
+          if (tableInstance && tableInstance.isInitialized) tableInstance.setColumnWidth(1, 150);
+          else console.warn("Table 1 not initialized.");
+        });
+        document.getElementById('btnGetCol0State').addEventListener('click', function() {
+          if (tableInstance && tableInstance.isInitialized) {
+            const state = tableInstance.getColumnState(0);
+            console.log("State for Table 1, Column 0:", state);
+            if(stateOutputDiv) stateOutputDiv.textContent = JSON.stringify(state, null, 2);
+          } else {
+            if(stateOutputDiv) stateOutputDiv.textContent = "Table 1 not initialized.";
+            console.warn("Table 1 not initialized.");
+          }
+        });
+        document.getElementById('btnDestroyTable').addEventListener('click', function() {
+          if (tableInstance && tableInstance.isInitialized) {
+            tableInstance.destroy();
+            if(stateOutputDiv) stateOutputDiv.textContent = "Table 1 instance destroyed.";
+          } else {
+            console.warn("Table 1 already destroyed or not initialized.");
+          }
+        });
+        document.getElementById('btnReinitTable').addEventListener('click', initializeMainResizableTable);
+
+        // --- Setup for Second Table ---
+        const table2Element = document.getElementById('myTable2');
+        if (table2Element) {
+            const table2Options = {
+                enableCollapsing: false, // Different configuration
+                minColumnWidth: 20,
+                resizeHandleWidth: 6,
+                onInit: function(data) { logEventToPage('init', data, 'Table 2'); },
+                onColumnResized: function(data) { logEventToPage('onColumnResized', data, 'Table 2'); },
+                onBeforeDestroy: function(data) { logEventToPage('onBeforeDestroy', data, 'Table 2'); }
+            };
+
+            function initializeResizableTable2() {
+                try {
+                    if (tableInstance2 && tableInstance2.isInitialized) tableInstance2.destroy();
+                    table2Element.classList.remove('rt-destroyed');
+                    tableInstance2 = new ResizableTable('#myTable2', table2Options);
+                } catch (e) {
+                    console.error("Error initializing Table 2:", e.message, e);
+                }
+            }
+            initializeResizableTable2();
+
+            document.getElementById('btnDestroyTable2').addEventListener('click', function() {
+                if (tableInstance2 && tableInstance2.isInitialized) tableInstance2.destroy();
+                else console.warn("Table 2 not initialized or already destroyed.");
+            });
+             document.getElementById('btnReinitTable2').addEventListener('click', initializeResizableTable2);
+        }
+
+        initializeMainResizableTable(); // Initial instantiation for the main table
       });
     </script>
 </body>

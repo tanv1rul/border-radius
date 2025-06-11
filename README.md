@@ -2,8 +2,6 @@
 
 A JavaScript plugin for making HTML tables resizable and collapsible.
 
-View a live demo of ResizableTable.js on our GitHub Pages site: [Live Demo](https://your-username.github.io/your-repository-name/)
-
 ## Features (Planned)
 
 *   Resizable columns
@@ -82,7 +80,6 @@ To use the ResizableTable plugin, include the script in your HTML file and then 
     });
     ```
 
-
 ## Configuration Options
 
 The `ResizableTable` constructor accepts an optional second argument, an object containing configuration options to customize its behavior and appearance. If an option is not provided, its default value will be used.
@@ -114,6 +111,19 @@ The `ResizableTable` constructor accepts an optional second argument, an object 
 | `onBeforeDestroy`             | `Function`| `null`                        | Callback: `function({ instance })`. Fired at the beginning of the `destroy()` method. |
 | `onColumnWidthSet`            | `Function`| `null`                        | Callback: `function({ columnIndex, newWidth, source })`. Fired when `setColumnWidth()` is called. `source` is `'programmatic'`. |
 
+## Development & Testing
+
+The `index.html` file at the root of this project provides a comprehensive demonstration and an interactive testbed for `ResizableTable.js`.
+
+To use it:
+1. Simply open `index.html` in your web browser.
+2. The page initializes two table instances with different configurations:
+    * The first table showcases a complex header structure with `colspan` and `rowspan`, and uses most of the default plugin features.
+    * The second table is simpler and demonstrates a minimal setup (e.g., collapsing disabled).
+3. You can interact with the tables directly (resizing, collapsing columns where enabled).
+4. Use the control buttons provided on the page to test public API methods like `toggleColumn()`, `setColumnWidth()`, `destroy()`, and re-initialization for each table instance.
+5. Observe the on-page "Event Log" to see real-time event firing from both table instances. More detailed event payloads and debug messages are also available in the browser's developer console.
+6. To experiment with different configurations, you can modify the `mainTableOptions` or `table2Options` objects within the `<script>` tag at the bottom of `index.html` and refresh the page, or use the "Re-initialize" buttons.
 
 ---
 
@@ -156,7 +166,6 @@ The `ResizableTable` constructor accepts an optional second argument, an object 
     *   [x] Add/remove `options.tableClassResizing` to table during drag.
 - [~] 3. Rowspan and Colspan Handling
     - [x] Detect and log `rowspan`/`colspan` on header cells.
-
     - [ ] Advanced handling logic (Not Implemented)
 - [x] 4. Performance Optimization
     - [x] Use `requestAnimationFrame` for drag updates.
@@ -195,7 +204,7 @@ The `ResizableTable` constructor accepts an optional second argument, an object 
     - [x] Use `touch-action: none` on resize handles.
 - [x] 2. Responsive Considerations
     - [x] Resize handle size/positioning adjusted for touch via `options.resizeHandleWidth`.
-    - [ ] Hover/focus styles (CSS handles hover, JS for active drag state).
+    - [x] Hover/focus styles (CSS handles hover, JS for active drag state).
 - [x] 3. Width Constraints
     - [x] Enforce min/max width in resize logic from `options`.
     - [ ] Option to use CSS `min-width`/`max-width` on `<th>`/`<td>` (Not Implemented, JS handles now)
@@ -234,8 +243,8 @@ The `ResizableTable` constructor accepts an optional second argument, an object 
     - [ ] Keyboard operability for resizing and collapsing.
 
 ### PHASE 7: Documentation & Examples
-- [x] README.md (updated with basic usage, options, roadmap).
-- [x] `index.html` (updated to demo comprehensive options and events).
+- [x] README.md (updated with basic usage, options, roadmap, development/testing info).
+- [x] `index.html` (updated to demo comprehensive options, events, multiple instances, and API controls).
 - [ ] More examples (different configurations, themes).
 - [ ] API documentation (JSDoc or similar for public methods and options).
 
