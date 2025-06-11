@@ -44,34 +44,32 @@ To use the ResizableTable plugin, include the script in your HTML file and then 
           <td>Data B1</td>
           <td>Data C1</td>
         </tr>
-        <tr>
-          <td>Data A2</td>
-          <td>Data B2</td>
-          <td>Data C2</td>
-        </tr>
+        <!-- More rows... -->
       </tbody>
     </table>
     ```
 
 3.  **Initialize the plugin:**
 
-    After the DOM is loaded, create a new instance of `ResizableTable`, passing either the table element itself or a CSS selector string.
+    After the DOM is loaded, create a new instance of `ResizableTable`, passing either the table element itself or a CSS selector string. You can also pass an options object as the second argument.
 
     ```javascript
     document.addEventListener('DOMContentLoaded', function() {
-      // Ensure the table element exists in the DOM
       const myTableElement = document.getElementById('myCoolTable');
       // or const myTableElement = document.querySelector('#myCoolTable');
 
       if (myTableElement) {
         try {
-          // Initialize with the DOM element
-          const resizableTable = new ResizableTable(myTableElement);
-          console.log("ResizableTable initialized for element:", myTableElement);
+          const options = {
+            minColumnWidth: 50, // Example option
+            // See "Configuration Options" below for all available settings
+          };
+          const resizableTable = new ResizableTable(myTableElement, options);
 
-          // Or, initialize with a CSS selector:
-          // const resizableTableFromString = new ResizableTable('#myCoolTable');
-          // console.log("ResizableTable initialized for selector '#myCoolTable'");
+          // Using events
+          resizableTable.on('columnResized', function(data) {
+            console.log('Column resized:', data.columnIndex, 'New width:', data.newWidth);
+          });
 
         } catch (error) {
           console.error("Failed to initialize ResizableTable:", error.message);
@@ -81,6 +79,37 @@ To use the ResizableTable plugin, include the script in your HTML file and then 
       }
     });
     ```
+
+## Configuration Options
+
+The `ResizableTable` constructor accepts an optional second argument, an object containing configuration options to customize its behavior and appearance. If an option is not provided, its default value will be used.
+
+| Option                        | Type      | Default                       | Description                                                                 |
+|-------------------------------|-----------|-------------------------------|-----------------------------------------------------------------------------|
+| `enableResizing`              | `Boolean` | `true`                        | If `true`, columns can be resized.                                          |
+| `enableCollapsing`            | `Boolean` | `true`                        | If `true`, columns can be collapsed/expanded using UI toggles.              |
+| `minColumnWidth`              | `Number`  | `30`                          | Minimum width (in pixels) that a column can be resized to.                  |
+| `maxColumnWidth`              | `Number`  | `Infinity`                    | Maximum width (in pixels) that a column can be resized to.                  |
+| `resizeHandleWidth`           | `Number`  | `12`                          | Visual width (in pixels) of the draggable resize handles.                     |
+| `resizeHandleColor`           | `String`  | `'rgba(100, 100, 100, 0.2)'`  | Base background color of resize handles (applied via JS).                   |
+| `usePlaceholdersForCollapse`  | `Boolean` | `true`                        | If `true`, placeholder cells are inserted when columns collapse. If `false`, original cells are hidden with `display:none`. |
+| `collapseToggleSize`          | `Number`  | `10`                          | Approximate size (in pixels) for styling the collapse toggle button (width & height). |
+| `collapseToggleColor`         | `String`  | `'#007bff'`                   | Background color for the collapse toggle button (applied via JS).           |
+| `collapseToggleContentOpen`   | `String`  | `'-'`                         | HTML content (e.g., text, SVG, HTML entity) for the toggle when the column is expanded (visible). |
+| `collapseToggleContentClosed` | `String`  | `'+'`                         | HTML content for the toggle when the column is collapsed or for the placeholder header. |
+| `placeholderCellWidth`        | `Number`  | `30`                          | Width (in pixels) of placeholder cells when `usePlaceholdersForCollapse` is `true`. |
+| `tableClassResizing`          | `String`  | `'rt-table-resizing'`         | CSS class added to the `<table>` element during an active column resize drag. |
+| `resizeHandleClass`           | `String`  | `'rt-resize-handle'`          | Base CSS class applied to all resize handle elements.                       |
+| `activeHandleClass`           | `String`  | `'rt-active-handle'`          | CSS class applied to a resize handle when it is being actively dragged.     |
+| `collapseToggleClass`         | `String`  | `'rt-collapse-toggle'`        | Base CSS class applied to all collapse toggle elements.                     |
+| `placeholderCellClass`        | `String`  | `'rt-col-placeholder'`        | CSS class applied to all placeholder cell elements (`<th>` and `<td>`).       |
+| `onInit`                      | `Function`| `null`                        | Callback: `function({ instance })`. Fired once after the table is fully initialized. |
+| `onColumnResizeStart`         | `Function`| `null`                        | Callback: `function({ columnIndex, handle, originalEvent })`. Fired when a column resize drag starts. |
+| `onColumnResized`             | `Function`| `null`                        | Callback: `function({ columnIndex, newWidth, originalEvent })`. Fired when a column resize drag ends and the new width is applied. |
+| `onColumnCollapse`            | `Function`| `null`                        | Callback: `function({ columnIndex })`. Fired when a column is collapsed.      |
+| `onColumnExpand`              | `Function`| `null`                        | Callback: `function({ columnIndex })`. Fired when a column is expanded.       |
+| `onBeforeDestroy`             | `Function`| `null`                        | Callback: `function({ instance })`. Fired at the beginning of the `destroy()` method. |
+| `onColumnWidthSet`            | `Function`| `null`                        | Callback: `function({ columnIndex, newWidth, source })`. Fired when `setColumnWidth()` is called. `source` is `'programmatic'`. |
 
 ---
 
@@ -97,96 +126,101 @@ To use the ResizableTable plugin, include the script in your HTML file and then 
     - [x] Find header row (`<thead>` or first `<tr>` in `<tbody>`)
     - [x] Store original table state (`this.originalTableState = this.table.cloneNode(true);`)
     - [x] Initialize `this.isInitialized = false;` (set to `true` after init)
-    - [x] Initial `console.log` statements for debugging.
     - [x] Store header cells (`this.headerRow`, `this.columnCount`)
+    - [x] Comprehensive `defaultOptions` structure.
+    - [x] Options merging in constructor.
 
 ### PHASE 2: Resizable Columns
 - [x] 1. Resize Handle Implementation (`_createResizeHandles()`)
     - [x] Create `<div>` elements as handles.
-    - [x] Style handles for visibility and interaction (cursor, position).
+    - [x] Style handles for visibility and interaction (cursor, position, color, width from options).
     - [x] Append handles to `<th>` elements.
     - [x] Ensure `<th>` has `position: relative`.
     - [x] Store handles in `this.resizeHandles`.
-- [x] 2. Resize Logic (`_onMouseDown`, `_onMouseMove`, `_onMouseUp`, `_updateColumnWidth`)
-    - [x] Event binding and unbinding for mouse events on `document`.
-    - [x] Calculate width changes based on mouse movement (`deltaX`).
-    - [x] Apply new width to `<th>` element (`th.style.width`).
-    - [x] Use `requestAnimationFrame` in `_onMouseMove` for performance.
-    - [x] Store initial state on mousedown (`this.startX`, `this.startWidth`, `this.currentColumnIndex`).
-    - [x] Update `this.columnWidths` array on mouseup.
-    - [x] Enforce minimum column width (e.g., 20px).
-    - [x] Force `table-layout: fixed` on the table.
-    - [x] Initialize column widths from computed styles or explicitly set `cell.style.width`.
+    - [x] Conditional creation based on `options.enableResizing`.
+    - [x] Use `options.resizeHandleClass` and `options.activeHandleClass`.
+- [x] 2. Resize Logic (`_onDragStart`, `_onDragMoveWrapper`, `_onDragEndWrapper`, `_updateColumnWidth`)
+    - [x] Event binding and unbinding for mouse/touch events on `document`.
+    - [x] Calculate width changes based on mouse/touch movement.
+    - [x] Apply new width to `<th>` element.
+    *   [x] Use `requestAnimationFrame` in drag move logic.
+    *   [x] Store initial state on drag start.
+    *   [x] Update `this.columnWidths` array on drag end.
+    *   [x] Enforce min/max column width from `options`.
+    *   [x] Force `table-layout: fixed` on the table.
+    *   [x] Initialize column widths from computed styles.
+    *   [x] Add/remove `options.tableClassResizing` to table during drag.
 - [~] 3. Rowspan and Colspan Handling
     - [x] Detect and log `rowspan`/`colspan` on header cells.
     - [ ] Advanced handling logic (Not Implemented)
-- [ ] 4. Performance Optimization
+- [x] 4. Performance Optimization
+    - [x] Use `requestAnimationFrame` for drag updates.
     - [ ] Optional throttling via user-defined `updateInterval` (Not Implemented)
     - [ ] Defer DOM writes via `requestIdleCallback` (Not Implemented)
 
 ### PHASE 3: Collapsible Columns
-- [~] 1. Collapse Toggle Setup (`_createCollapseToggles()`, `_onCollapseToggle`)
+- [x] 1. Collapse Toggle Setup (`_createCollapseToggles()`, `_onCollapseToggle`)
     - [x] Create `<span>` elements as toggles.
-    - [x] Style toggles (placeholder styles).
+    - [x] Style toggles using `options` (size, color, content, class).
     - [x] Append toggles to `<th>` elements.
     - [x] Ensure `<th>` has `position: relative`.
     - [x] Add `click` event listener to toggles.
-    - [x] Basic `_onCollapseToggle` handler (logs, prevents default/propagation).
-    - [ ] Prevent event propagation from handle to `th` for other interactions (Partially done with `stopPropagation` in toggle click)
-    - [ ] Bounding box detection for clicks near edge (Not Implemented)
-- [ ] 2. Collapse UI & Logic
-    - [ ] Implement actual show/hide logic for columns.
-    - [ ] Update toggle appearance (e.g., '+' to '-', icon changes).
-    - [ ] Store collapsed state (e.g., in `this.collapsedColumns` array).
-    - [ ] Handle `<tbody>` cells visibility.
-    - [ ] Track placeholders for collapsed columns (Not Implemented)
-    - [ ] Clean up fully before restore (Not Implemented)
-- [ ] 3. Expand Logic
-    - [ ] Implement logic to show a collapsed column.
-    - [ ] Restore original or last known width.
-    - [ ] Store restoration metadata (Not Implemented)
-    - [ ] Validate DOM before restoring / fallback to reset (Not Implemented)
+    - [x] `_onCollapseToggle` handler accepts event or column index.
+    - [x] Conditional creation based on `options.enableCollapsing`.
+- [x] 2. Collapse UI & Logic
+    - [x] Implement show/hide logic for columns.
+    - [x] Update toggle appearance based on `options` and state.
+    - [x] Store collapsed state in `this.collapsedColumns`.
+    - [x] Handle `<tbody>` cells visibility.
+    - [x] Conditional placeholder strategy via `options.usePlaceholdersForCollapse`.
+        - [x] Create/remove placeholder `<th>` and `<td>` elements.
+        - [x] Style placeholders using `options.placeholderCellClass` and `options.placeholderCellWidth`.
+        - [x] Placeholder header is clickable to expand.
+    - [x] Basic DOM validation before restoring (row/header counts, column index bounds).
+- [x] 3. Expand Logic
+    - [x] Implemented logic to show a collapsed column (both placeholder and `display:none` strategies).
+    - [x] Restore original or last known width from `this.columnWidths`.
+    - [x] Store/restore cell references in `this.collapsedColumnData` for placeholder strategy.
 
 ### PHASE 4: Mobile Optimization
-- [ ] 1. Touch Enhancements
-    - [ ] Add touch event listeners (`touchstart`, `touchmove`, `touchend`).
-    - [ ] Adapt mouse event logic for touch.
-    - [ ] Detect gesture direction (Not Implemented)
-    - [ ] Use `touch-action: none` and `preventDefault` appropriately (Not Implemented)
-- [ ] 2. Responsive Considerations
-    - [ ] Enforce min handle width for touch targets (Not Implemented)
-    - [ ] Hover/focus styles for touch (Not Implemented)
-- [ ] 3. Width Constraints
-    - [x] Enforce min width in resize logic.
-    - [ ] Enforce max width in resize logic (Not Implemented).
-    - [ ] Option to use CSS `min-width`/`max-width` on `<th>`/`<td>` (Not Implemented)
+- [x] 1. Touch Enhancements
+    - [x] Add touch event listeners (`touchstart`, `touchmove`, `touchend`, `touchcancel`) for resizing.
+    - [x] Adapt mouse event logic for touch in drag handlers.
+    - [~] Detect gesture direction (basic implementation for scroll vs. resize).
+    - [x] Use `touch-action: none` on resize handles.
+- [x] 2. Responsive Considerations
+    - [x] Resize handle size/positioning adjusted for touch via `options.resizeHandleWidth`.
+    - [ ] Hover/focus styles (CSS handles hover, JS for active drag state).
+- [x] 3. Width Constraints
+    - [x] Enforce min/max width in resize logic from `options`.
+    - [ ] Option to use CSS `min-width`/`max-width` on `<th>`/`<td>` (Not Implemented, JS handles now)
 
 ### PHASE 5: API and Extensibility
-- [ ] 1. Public Methods
-    - [x] `isInitialized` flag check in `init()`.
-    - [ ] `destroy()` method.
+- [x] 1. Public Methods
+    - [x] `isInitialized` flag check in public methods.
+    - [x] `destroy()` method (basic implementation with TODOs for full cleanup).
+    - [x] `toggleColumn(columnIndex)` with validation.
+    - [x] `setColumnWidth(columnIndex, width)` with validation and constraints.
+    - [x] `getColumnState(columnIndex)` with validation.
     - [ ] `reset()` method (to original or initial state).
     - [ ] `updateOptions()` method.
-    - [ ] Methods to programmatically resize/collapse/expand columns.
-    - [ ] Index out of bounds validation for public methods (Not Implemented)
-- [ ] 2. Event Hooks/Callbacks
-    - [ ] Define events (e.g., `onResizeStart`, `onResizeEnd`, `onCollapse`, `onExpand`).
-    - [ ] Helper methods for registering/unregistering callbacks (Not Implemented)
-    - [ ] Warn on callback failure (Not Implemented)
-- [~] 3. State Management
-    - [x] Private internal state properties (`columnWidths`, `isResizing`, etc.).
-    - [ ] Option for persistence (e.g., `localStorage`).
-    - [ ] `this.collapsedColumns` array (To be added).
-    - [ ] Avoid relying on DOM data attributes alone for critical state (Review current usage - `data-column-index` is okay for event handlers).
+- [x] 2. Event Hooks/Callbacks
+    *   [x] Basic event emitter (`on`, `off`, `_emit`).
+    *   [x] Key events emitted (`init`, `columnResizeStart`, `columnResized`, `columnCollapse`, `columnExpand`, `beforeDestroy`, `columnWidthSet`).
+    *   [x] Option-based callbacks (e.g., `onInit`) invoked with `try...catch`.
+- [x] 3. State Management
+    - [x] Private internal state properties (`columnWidths`, `isResizing`, `collapsedColumns`, `collapsedColumnData`, etc.).
+    - [x] `dataset` attributes used for static references (e.g., `columnIndex`), not for dynamic state.
+    - [ ] Option for persistence (e.g., `localStorage`). (Not Implemented)
 
 ### PHASE 6: Testing & Validation
 - [ ] 1. Test Coverage
-    - [ ] Unit tests for core logic (resize, collapse, init).
-    - [ ] Tests for DOM manipulations and event handling.
+    - [ ] Unit tests for core logic.
     - [ ] Cross-browser testing (manual for now).
-- [~] 2. Edge Case Handling
+- [x] 2. Edge Case Handling
     - [x] Log warnings for `colspan`/`rowspan`.
     - [x] Fallback for missing `<thead>`.
+    - [x] Basic DOM validation on column expand.
     - [ ] Handle `display:none` on table or ancestors.
     - [ ] Empty table or table with no rows/cells.
 - [ ] 3. Accessibility (ARIA)
@@ -195,14 +229,14 @@ To use the ResizableTable plugin, include the script in your HTML file and then 
     - [ ] Keyboard operability for resizing and collapsing.
 
 ### PHASE 7: Documentation & Examples
-- [x] README.md (Initial version created, updated with roadmap)
-- [x] `index.html` basic example page.
+- [x] README.md (updated with basic usage, options, roadmap).
+- [x] `index.html` (updated to demo comprehensive options and events).
 - [ ] More examples (different configurations, themes).
-- [ ] API documentation (JSDoc or similar).
+- [ ] API documentation (JSDoc or similar for public methods and options).
 
 ### PHASE 8: Build and Distribution
 - [ ] Setup build process (e.g., Webpack, Rollup).
 - [ ] Minification.
 - [ ] Sourcemaps.
-- [ ] Add `dist/` files to `.gitignore` (once build is set up).
+- [ ] Add `dist/` files to `.gitignore`.
 - [ ] Publish to npm (optional).
