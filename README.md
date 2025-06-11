@@ -82,6 +82,38 @@ To use the ResizableTable plugin, include the script in your HTML file and then 
     });
     ```
 
+## Configuration Options
+
+The `ResizableTable` constructor accepts an optional second argument, an `options` object, to customize its behavior:
+
+```javascript
+const options = {
+  resizeUpdateInterval: 0, // Default
+  deferDomWrites: false    // Default
+};
+const tableInstance = new ResizableTable('#myTable', options);
+```
+
+Below are the available options:
+
+### `resizeUpdateInterval`
+*   **Type:** `Number`
+*   **Default:** `0`
+*   **Description:** Specifies the minimum interval in milliseconds between column width updates during a resize drag operation. When set to `0` (default), updates are driven by `requestAnimationFrame` for maximum smoothness. A positive value (e.g., `50` or `100`) throttles updates, potentially improving performance on complex tables or slower devices at the cost of visual smoothness.
+*   **Example:**
+    ```javascript
+    new ResizableTable('#myTable', { resizeUpdateInterval: 100 });
+    ```
+
+### `deferDomWrites`
+*   **Type:** `Boolean`
+*   **Default:** `false`
+*   **Description:** **Experimental.** When set to `true`, DOM write operations (updating column style widths) during resize are deferred using `requestIdleCallback`, if available in the browser. This is intended to free up the main thread, but may introduce a perceptible lag between the drag action and the visual update. The final update upon drag completion is always synchronous. Use with caution.
+*   **Example:**
+    ```javascript
+    new ResizableTable('#myTable', { deferDomWrites: true });
+    ```
+
 ---
 
 **Note:** This project is currently under active development. Features and API are subject to change.
@@ -119,10 +151,10 @@ To use the ResizableTable plugin, include the script in your HTML file and then 
     - [x] Initialize column widths from computed styles or explicitly set `cell.style.width`.
 - [~] 3. Rowspan and Colspan Handling
     - [x] Detect and log `rowspan`/`colspan` on header cells.
-    - [ ] Advanced handling logic (Not Implemented)
-- [ ] 4. Performance Optimization
-    - [ ] Optional throttling via user-defined `updateInterval` (Not Implemented)
-    - [ ] Defer DOM writes via `requestIdleCallback` (Not Implemented)
+    - [x] Advanced handling logic for colspan. Rowspan detection continues to log warnings.
+- [x] 4. Performance Optimization
+    - [x] Optional throttling via user-defined `updateInterval`.
+    - [x] Defer DOM writes via `requestIdleCallback` (experimental).
 
 ### PHASE 3: Collapsible Columns
 - [~] 1. Collapse Toggle Setup (`_createCollapseToggles()`, `_onCollapseToggle`)
