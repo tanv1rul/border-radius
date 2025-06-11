@@ -84,6 +84,23 @@
             }
 
             this.table.style.tableLayout = 'fixed';
+
+            // Attempt to apply overflow-x: auto to parent element
+            const parentEl = this.table.parentNode;
+            if (parentEl && parentEl instanceof HTMLElement) {
+                const parentStyles = window.getComputedStyle(parentEl);
+                const currentOverflowX = parentStyles.overflowX;
+
+                if (currentOverflowX === 'visible' || currentOverflowX === 'initial' || currentOverflowX === 'unset') {
+                    parentEl.style.overflowX = 'auto';
+                    console.log(`ResizableTable: Applied overflow-x: auto; to parent element of table '${this.table.id || '[no id]'}':`, parentEl);
+                } else {
+                    console.warn(`ResizableTable: Parent element of table '${this.table.id || '[no id]'}' already has overflow-x: ${currentOverflowX}. Plugin will not override.`, parentEl);
+                }
+            } else {
+                console.warn(`ResizableTable: Could not apply overflow-x to parent of table '${this.table.id || '[no id]}'. Parent element not found or not an HTMLElement.`, parentEl);
+            }
+
             this.columnWidths = [];
 
             if (this.headerRow && this.headerRow.cells.length > 0) {

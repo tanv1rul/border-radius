@@ -84,19 +84,23 @@ To use the ResizableTable plugin, include the script in your HTML file and then 
     });
     ```
 
-4.  **Handling Table Overflow / Horizontal Scrolling:**
+4.  **Handling Table Overflow / Horizontal Scrolling (Automatic Parent Styling):**
 
-    When columns are resized, the total width of the table might exceed the width of its containing element. To allow users to scroll horizontally in such cases, you need to configure the table's parent container.
+    When columns are resized, the total width of the table might exceed the width of its containing element. To enable horizontal scrolling, the plugin now *automatically attempts* to style the table's immediate parent container.
 
-    Key points for enabling horizontal scrolling:
-    *   **Parent Container Overflow:** The direct parent element of your table should have the CSS property `overflow-x: auto;` (or `overflow-x: scroll;`). This tells the browser to display a horizontal scrollbar if the content (the table) overflows the container's width.
-    *   **Table Layout:** The plugin automatically sets `table-layout: fixed;` on the table. This is essential for predictable column resizing and is handled for you.
-    *   **Table Width:** For the table to expand beyond its container's boundaries and trigger the scrollbar, its own CSS `width` should typically be `auto` (which is the default for tables) or a width larger than its container. Avoid setting `width: 100%;` on the table if its parent has a fixed width and you intend for the table to overflow that parent, as this would constrain the table to the parent's width.
+    Key points regarding this feature:
+    *   **Automatic Styling:** During initialization, the plugin inspects the `overflow-x` CSS property of the table's direct parent element.
+        *   If the parent's `overflow-x` is `visible` (the default for most elements), `initial`, or `unset`, the plugin will set `parent.style.overflowX = 'auto';`. A confirmation message is logged to the console.
+        *   If the parent already has an `overflow-x` value of `auto`, `scroll`, `hidden`, or any other value not listed above, the plugin will *not* change it and will log a warning message indicating that the existing style is being respected.
+    *   **Parent Container Width:** For the horizontal scrollbar to appear and function correctly, the parent container must have a defined `width` (e.g., `600px`, `50vw`) or `max-width` that the table can actually exceed. The plugin *does not* set any width on the parent container; this remains the responsibility of the user's CSS.
+    *   **Table Layout:** The plugin automatically sets `table-layout: fixed;` on the table itself. This is essential for predictable column resizing.
+    *   **Table Width:** The table's own CSS `width` should generally be `auto` (the default) or not constrained in a way that prevents it from growing larger than its parent (e.g., avoid `width: 100%;` if the parent has a fixed width and you want the table to cause an overflow).
 
-    **Example HTML/CSS Setup:**
+    **Example HTML Setup:**
 
     ```html
-    <div style="width: 600px; /* Example fixed width for the container */ overflow-x: auto; border: 1px solid #ccc; /* Optional: to see container */">
+    <!-- Ensure this div has a defined width via CSS or inline style -->
+    <div class="table-wrapper" style="width: 600px; border: 1px solid #ccc; /* Optional: to see container */">
       <table id="myResizableTable">
         <thead>
           <tr>
@@ -121,10 +125,12 @@ To use the ResizableTable plugin, include the script in your HTML file and then 
     <script>
       document.addEventListener('DOMContentLoaded', function() {
         new ResizableTable('#myResizableTable');
+        // The plugin will attempt to set 'overflow-x: auto;' on 'div.table-wrapper'
+        // if its current overflow-x is 'visible', 'initial', or 'unset'.
       });
     </script>
     ```
-    In this example, if the sum of the widths of the columns in `myResizableTable` (after resizing) exceeds `600px`, the `div` will show a horizontal scrollbar. The `ResizableTable.js` plugin will handle the necessary `table-layout: fixed;` style on the table itself.
+    In this example, `ResizableTable.js` will attempt to apply `overflow-x: auto;` to the `div` with class `table-wrapper`. If the sum of column widths in `myResizableTable` exceeds `600px`, the `div` should then display a horizontal scrollbar.
 
 ---
 

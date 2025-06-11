@@ -24,7 +24,7 @@ h2 {
 
 .table-container {
   width: 600px; /* Fixed width to demonstrate overflow */
-  overflow-x: auto;
+  /* overflow-x: auto; Removed as plugin now handles this */
   border: 1px dashed #ccc; /* Optional: to make the container visible */
   margin-bottom: 20px; /* Optional: for spacing */
 }
