@@ -2,6 +2,8 @@
 
 A JavaScript plugin for making HTML tables resizable and collapsible.
 
+View a live demo of ResizableTable.js on our GitHub Pages site: [Live Demo](https://your-username.github.io/your-repository-name/)
+
 ## Features (Planned)
 
 *   Resizable columns
@@ -80,6 +82,7 @@ To use the ResizableTable plugin, include the script in your HTML file and then 
     });
     ```
 
+
 ## Configuration Options
 
 The `ResizableTable` constructor accepts an optional second argument, an object containing configuration options to customize its behavior and appearance. If an option is not provided, its default value will be used.
@@ -110,6 +113,7 @@ The `ResizableTable` constructor accepts an optional second argument, an object 
 | `onColumnExpand`              | `Function`| `null`                        | Callback: `function({ columnIndex })`. Fired when a column is expanded.       |
 | `onBeforeDestroy`             | `Function`| `null`                        | Callback: `function({ instance })`. Fired at the beginning of the `destroy()` method. |
 | `onColumnWidthSet`            | `Function`| `null`                        | Callback: `function({ columnIndex, newWidth, source })`. Fired when `setColumnWidth()` is called. `source` is `'programmatic'`. |
+
 
 ---
 
@@ -152,6 +156,7 @@ The `ResizableTable` constructor accepts an optional second argument, an object 
     *   [x] Add/remove `options.tableClassResizing` to table during drag.
 - [~] 3. Rowspan and Colspan Handling
     - [x] Detect and log `rowspan`/`colspan` on header cells.
+
     - [ ] Advanced handling logic (Not Implemented)
 - [x] 4. Performance Optimization
     - [x] Use `requestAnimationFrame` for drag updates.
