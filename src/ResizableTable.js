@@ -23,6 +23,8 @@
             this.startWidth = 0;
             this.rafPending = false;
             this.lastMouseX = 0;
+            this.collapsedColumns = {}; // Initialize collapsedColumns
+            this.isTouchEvent = false;
 
             let tableElement;
 
@@ -43,9 +45,15 @@
             this.init();
 
             this._onMouseDown = this._onMouseDown.bind(this);
-            this._onMouseMove = this._onMouseMove.bind(this);
-            this._onMouseUp = this._onMouseUp.bind(this);
+            // _onMouseMove and _onMouseUp will be replaced by _onDragMoveWrapper and _onDragEndWrapper
+            // this._onMouseMove = this._onMouseMove.bind(this);
+            // this._onMouseUp = this._onMouseUp.bind(this);
             this._onCollapseToggle = this._onCollapseToggle.bind(this);
+
+            this._onTouchStart = this._onTouchStart.bind(this);
+            this._onDragStart = this._onDragStart.bind(this);
+            this._onDragMoveWrapper = this._onDragMoveWrapper.bind(this);
+            this._onDragEndWrapper = this._onDragEndWrapper.bind(this);
         }
 
         init() {
@@ -136,8 +144,13 @@
                     handle.style.cursor = 'col-resize';
                     handle.style.backgroundColor = 'rgba(100, 100, 100, 0.2)';
                     handle.style.zIndex = '10';
+                    handle.style.touchAction = 'none'; // Prevent scrolling during touch drag
 
-                    handle.addEventListener('mousedown', this._onMouseDown);
+                    // Replace direct mousedown with new setup
+                    // handle.addEventListener('mousedown', this._onMouseDown);
+                    handle.addEventListener('mousedown', this._onMouseDown); // This now calls _onDragStart
+                    handle.addEventListener('touchstart', this._onTouchStart, { passive: false }); // passive: false to allow preventDefault
+                    console.log(`ResizableTable: Applied touch-action: none to handle for column ${index}`);
 
                     th.appendChild(handle);
                     this.resizeHandles.push(handle);
@@ -206,47 +219,179 @@
             }
 
             // TODO: Implement actual collapse/expand logic here in a future step.
-            console.log(`ResizableTable: Collapse toggle clicked for column index: ${columnIndex}`);
-            // For now, let's change the toggle text to see an effect
-            // toggle.innerHTML = toggle.innerHTML === '-' ? '+' : '-';
+            // console.log(`ResizableTable: Collapse toggle clicked for column index: ${columnIndex}`);
+
+            const isCurrentlyCollapsed = this.collapsedColumns[columnIndex] === true;
+            const newCollapsedState = !isCurrentlyCollapsed;
+            this.collapsedColumns[columnIndex] = newCollapsedState;
+
+            const headerCell = this.headerRow.cells[columnIndex];
+            const tableRows = Array.from(this.table.rows); // Includes thead, tbody, tfoot rows
+
+            // Resize handle for this column is a child of the header cell and
+            // will be hidden/shown automatically when the header cell's display property is changed.
+            // Same for the collapse toggle itself, as it's also a child of headerCell.
+
+            if (newCollapsedState) { // Collapsing
+                if (headerCell) {
+                    // Store the current width before hiding the column, as 'display: none'
+                    // can affect an element's computed width or make it unavailable.
+                    // This ensures that when expanded, the column returns to its previous visual width.
+                    const currentWidth = parseFloat(window.getComputedStyle(headerCell).width);
+
+                    // Check if the current computed width is different from what's already stored
+                    // (e.g. from a resize operation or previous collapse).
+                    // This avoids redundantly storing the same width or overwriting a user-resized width
+                    // with a computed width if they happen to differ subtly due to browser rendering.
+                    if (this.columnWidths[columnIndex] === undefined || Math.abs(this.columnWidths[columnIndex] - currentWidth) > 0.5) { // Using a small tolerance for float comparison
+                        console.log(`ResizableTable: Storing/updating width ${currentWidth}px for column ${columnIndex} from computed style before collapse. Previous stored: ${this.columnWidths[columnIndex]}`);
+                        this.columnWidths[columnIndex] = currentWidth;
+                    } else {
+                        console.log(`ResizableTable: Width ${this.columnWidths[columnIndex]}px for column ${columnIndex} is already accurately stored. Not re-storing before collapse.`);
+                    }
+                    headerCell.style.display = 'none';
+                }
+                tableRows.forEach(row => {
+                    if (row.cells && row.cells[columnIndex]) {
+                        row.cells[columnIndex].style.display = 'none';
+                    }
+                });
+                event.currentTarget.innerHTML = '+';
+                event.currentTarget.title = `Expand column ${headerCell ? headerCell.textContent.trim() : columnIndex + 1}`;
+                console.log(`ResizableTable: Column ${columnIndex} collapsed.`);
+
+            } else { // Expanding
+                if (headerCell) {
+                    headerCell.style.display = ''; // Reverts to default (e.g., 'table-cell')
+
+                    // Restore the stored width after making the column visible again,
+                    // ensuring it retains its previous size (either from original layout, resize, or previous collapse).
+                    if (typeof this.columnWidths[columnIndex] === 'number') {
+                        headerCell.style.width = this.columnWidths[columnIndex] + 'px';
+                        console.log(`ResizableTable: Restored width ${this.columnWidths[columnIndex]}px to column ${columnIndex} after expand.`);
+                    } else {
+                        // If no width was stored (e.g. table never resized, column never collapsed before initially)
+                        // it will revert to its CSS-defined width or 'auto'.
+                        console.log(`ResizableTable: No specific width stored for column ${columnIndex}. Reverting to default/CSS width on expand.`);
+                    }
+                }
+                tableRows.forEach(row => {
+                    if (row.cells && row.cells[columnIndex]) {
+                        row.cells[columnIndex].style.display = '';
+                    }
+                });
+                event.currentTarget.innerHTML = '-';
+                event.currentTarget.title = `Collapse column ${headerCell ? headerCell.textContent.trim() : columnIndex + 1}`;
+                console.log(`ResizableTable: Column ${columnIndex} expanded.`);
+            }
         }
 
         _onMouseDown(event) {
+            this._onDragStart(event, event.clientX, false);
+        }
+
+        _onTouchStart(event) {
+            if (event.touches.length > 1) {
+                // Ignore multi-touch gestures for resizing
+                return;
+            }
+            // event.preventDefault(); // Already called in _onDragStart if passive:false is respected
+            this._onDragStart(event, event.touches[0].clientX, true);
+        }
+
+        _onDragStart(event, clientX, isTouchEvent) {
             event.preventDefault();
-            event.stopPropagation();
+            // event.stopPropagation(); // Not strictly needed here unless other listeners on handle
 
             const handle = event.currentTarget;
             const columnIndex = parseInt(handle.dataset.columnIndex, 10);
 
-            this.startX = event.clientX;
-            this.lastMouseX = event.clientX; // Initialize for RAF
+            if (isNaN(columnIndex)) {
+                console.error("ResizableTable: Invalid column index from handle.", handle);
+                return;
+            }
+
+            this.isTouchEvent = isTouchEvent;
+            this.startX = clientX;
+            this.lastMouseX = clientX; // Use lastMouseX consistently for RAF logic, even for touch
             this.currentColumnIndex = columnIndex;
 
             const th = this.headerRow.cells[columnIndex];
-            // Use existing style.width if set (e.g. by previous resize), otherwise computed width
+            if (!th) {
+                console.error(`ResizableTable: DragStart - Could not find header cell for column ${columnIndex}.`);
+                return;
+            }
             this.startWidth = parseFloat(th.style.width || window.getComputedStyle(th).width);
 
-            console.log(`ResizableTable: MouseDown on handle for column ${columnIndex}, startX: ${this.startX}, startWidth: ${this.startWidth}`);
-
             this.isResizing = true;
+            console.log(`ResizableTable: DragStart - Column ${columnIndex}, startX: ${this.startX.toFixed(2)}, startWidth: ${this.startWidth.toFixed(2)}px, isTouch: ${this.isTouchEvent}`);
 
-            document.addEventListener('mousemove', this._onMouseMove);
-            document.addEventListener('mouseup', this._onMouseUp);
+            if (this.isTouchEvent) {
+                document.addEventListener('touchmove', this._onDragMoveWrapper, { passive: false });
+                document.addEventListener('touchend', this._onDragEndWrapper);
+                document.addEventListener('touchcancel', this._onDragEndWrapper);
+            } else {
+                document.addEventListener('mousemove', this._onDragMoveWrapper);
+                document.addEventListener('mouseup', this._onDragEndWrapper);
+            }
         }
 
-        _onMouseMove(event) {
+        _onDragMoveWrapper(event) {
             if (!this.isResizing) return;
-
-            this.lastMouseX = event.clientX;
+            // This wrapper will extract clientX and call _onDragMove (new method similar to old _onMouseMove)
+            // For now, just call existing _onMouseMove logic and _updateColumnWidth by proxy
+            const clientX = this.isTouchEvent ? event.touches[0].clientX : event.clientX;
+            this.lastMouseX = clientX; // Update for RAF
 
             if (!this.rafPending) {
                 this.rafPending = true;
                 requestAnimationFrame(() => {
-                    this._updateColumnWidth();
+                    this._updateColumnWidth(); // _updateColumnWidth uses this.lastMouseX
                     this.rafPending = false;
                 });
             }
+             if (this.isTouchEvent) { // To prevent scrolling while dragging
+                event.preventDefault();
+            }
         }
+
+        _onDragEndWrapper(event) {
+            if (!this.isResizing) return;
+            // This wrapper will call _onDragEnd (new method similar to old _onMouseUp)
+
+            // For now, directly use logic from old _onMouseUp
+            this._updateColumnWidth(); // Final update
+
+            const th = this.headerRow.cells[this.currentColumnIndex]; // currentColumnIndex should be valid
+            if (th) {
+                const finalWidth = parseFloat(th.style.width);
+                this.columnWidths[this.currentColumnIndex] = finalWidth;
+                console.log(`ResizableTable: DragEnd - Column ${this.currentColumnIndex} finalized width to: ${finalWidth.toFixed(2)}px. Stored: ${this.columnWidths[this.currentColumnIndex].toFixed(2)}px. isTouch: ${this.isTouchEvent}`);
+            } else {
+                console.warn(`ResizableTable: DragEnd - Could not find header cell for column ${this.currentColumnIndex} to finalize width.`);
+            }
+
+            this.isResizing = false;
+
+            if (this.isTouchEvent) {
+                document.removeEventListener('touchmove', this._onDragMoveWrapper);
+                document.removeEventListener('touchend', this._onDragEndWrapper);
+                document.removeEventListener('touchcancel', this._onDragEndWrapper);
+            } else {
+                document.removeEventListener('mousemove', this._onDragMoveWrapper);
+                document.removeEventListener('mouseup', this._onDragEndWrapper);
+            }
+
+            // Reset transient properties
+            this.startX = 0;
+            this.startWidth = 0;
+            this.lastMouseX = 0;
+            this.currentColumnIndex = -1;
+            this.isTouchEvent = false; // Reset touch flag
+        }
+
+        // _onMouseMove and _onMouseUp are now effectively replaced by
+        // _onDragMoveWrapper, _onDragEndWrapper, and _updateColumnWidth (which was already used by them)
 
         _updateColumnWidth() {
             if (!this.isResizing) return;
@@ -262,36 +407,11 @@
 
             const th = this.headerRow.cells[this.currentColumnIndex];
             if (th) {
+                // Note: If the current column were to be collapsed mid-drag (e.g. via a hypothetical keyboard shortcut),
+                // accessing properties of the hidden th or setting its width might be problematic or have no visible effect
+                // until expanded. Currently, collapse is via toggle click, which should interrupt resizing.
                 th.style.width = newWidth + 'px';
-                // Optional: Throttle this log if too noisy
-                // console.log(`ResizableTable: UpdateWidth - Column ${this.currentColumnIndex}, newWidth: ${newWidth.toFixed(1)}px`);
             }
-        }
-
-        _onMouseUp(event) {
-            if (!this.isResizing) return;
-
-            // Final update to ensure the last position is applied
-            this._updateColumnWidth();
-
-            const th = this.headerRow.cells[this.currentColumnIndex];
-            if (th) {
-                const finalWidth = parseFloat(th.style.width);
-                this.columnWidths[this.currentColumnIndex] = finalWidth;
-                console.log(`ResizableTable: MouseUp - Column ${this.currentColumnIndex} finalized width to: ${finalWidth}px. Stored in columnWidths: ${this.columnWidths[this.currentColumnIndex]}px`);
-            } else {
-                console.warn(`ResizableTable: MouseUp - Could not find header cell for column ${this.currentColumnIndex} to finalize width.`);
-            }
-
-            this.isResizing = false;
-            document.removeEventListener('mousemove', this._onMouseMove);
-            document.removeEventListener('mouseup', this._onMouseUp);
-
-            // Reset transient properties
-            this.startX = 0;
-            this.startWidth = 0;
-            this.lastMouseX = 0;
-            this.currentColumnIndex = -1;
         }
     }
 
