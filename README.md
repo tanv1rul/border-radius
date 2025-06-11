@@ -2,6 +2,8 @@
 
 A JavaScript plugin for making HTML tables resizable and collapsible.
 
+View a live demo of ResizableTable.js on our GitHub Pages site: [Live Demo](https://your-username.github.io/your-repository-name/)
+
 ## Features (Planned)
 
 *   Resizable columns
