@@ -6,6 +6,43 @@
     <title>ResizableTable.js - jQuery Plugin for Resizable and Collapsible Tables</title>
     <link rel="stylesheet" href="style.css">
     <!-- <link rel="stylesheet" href="src/style.css"> -->
+    <style>
+      /* Placeholder styling */
+      .rt-col-placeholder {
+        /* width is set by options.placeholderCellWidth via JS if usePlaceholdersForCollapse is true */
+        min-width: 10px; /* Fallback if width option is very small */
+        box-sizing: border-box;
+        padding: 2px 4px;
+        text-align: center;
+        background-color: #f0f0f0;
+        border: 1px dashed #ccc;
+        font-size: 0.8em; /* Smaller font for placeholder content like '+' */
+        color: #777;
+      }
+      th.rt-col-placeholder {
+        font-weight: normal; /* Placeholder header text shouldn't be bold typically */
+      }
+
+      /* Style for the main collapse toggle elements (created by JS) */
+      .rt-collapse-toggle {
+          /* Base styles are applied in JS from options (size, color) */
+          /* Add any additional CSS-only styles or overrides here if needed */
+          font-family: monospace; /* Example: for better rendering of +/- symbols */
+          line-height: 1; /* Ensure tight fit if using text symbols */
+      }
+
+      /* Visual feedback for resize handles (created by JS) */
+      .rt-resize-handle {
+        /* Base background-color is set via JS from options.resizeHandleColor */
+        transition: background-color 0.15s ease-in-out;
+      }
+      .rt-resize-handle:hover {
+        background-color: rgba(100, 100, 100, 0.5) !important;
+      }
+      .rt-resize-handle.rt-active-handle {
+        background-color: rgba(0, 0, 255, 0.4) !important;
+      }
+    </style>
 </head>
 <body>
     <header>
@@ -61,13 +98,68 @@
     <script>
       document.addEventListener('DOMContentLoaded', function() {
         try {
-          const tableInstance = new ResizableTable('#myTable');
-          console.log('ResizableTable instance:', tableInstance);
-          // You can add more checks here, e.g.,
-          // console.log('Is initialized:', tableInstance.isInitialized);
-          // console.log('Column count:', tableInstance.columnCount);
+          const tableInstance = new ResizableTable('#myTable', {
+            // Behavior options
+            enableResizing: true,
+            enableCollapsing: true,
+            usePlaceholdersForCollapse: true, // Try true or false to see different collapse modes
+
+            // Resizing options
+            minColumnWidth: 40, // Minimum width a column can be resized to
+            maxColumnWidth: 500, // Maximum width a column can be resized to
+            resizeHandleWidth: 10, // Visual width of the draggable resize handle
+            // resizeHandleColor: 'rgba(0,123,255,0.25)', // Example: Custom base color for handles
+
+            // Collapsing options
+            // collapseToggleSize: 12, // Example: Size of the clickable toggle button
+            // collapseToggleColor: 'green', // Example: Custom color for the toggle button
+            collapseToggleContentOpen: '&#x25BC;', // Downward triangle (▼) when column is expanded
+            collapseToggleContentClosed: '&#x25B6;', // Rightward triangle (▶) when column is collapsed/placeholder
+            placeholderCellWidth: 25, // Width of placeholder cells when a column is collapsed
+
+            // Event callbacks (examples)
+            onInit: function(data) {
+              console.log('Event: onInit - Table initialized!', data.instance);
+            },
+            onColumnResizeStart: function(data) {
+              console.log(`Event: onColumnResizeStart - Column ${data.columnIndex} resize started.`);
+            },
+            onColumnResized: function(data) {
+              console.log(`Event: onColumnResized - Column ${data.columnIndex} resized to ${data.newWidth}px.`);
+            },
+            onColumnCollapse: function(data) {
+              console.log(`Event: onColumnCollapse - Column ${data.columnIndex} collapsed.`);
+            },
+            onColumnExpand: function(data) {
+              console.log(`Event: onColumnExpand - Column ${data.columnIndex} expanded.`);
+            },
+            onBeforeDestroy: function(data) {
+              console.log('Event: onBeforeDestroy - Table about to be destroyed.', data.instance);
+            },
+            onColumnWidthSet: function(data) {
+              console.log(`Event: onColumnWidthSet - Column ${data.columnIndex} width set to ${data.newWidth}px by ${data.source}.`);
+            }
+          });
+
+          console.log('ResizableTable instance with comprehensive options:', tableInstance);
+
+          // Example of using public methods after initialization:
+          // setTimeout(() => {
+          //   if (tableInstance.isInitialized) {
+          //     console.log('Programmatically toggling column 0 after 2 seconds...');
+          //     tableInstance.toggleColumn(0);
+          //   }
+          // }, 2000);
+
+          // setTimeout(() => {
+          //   if (tableInstance.isInitialized) {
+          //     console.log('Programmatically setting column 1 width after 4 seconds...');
+          //     tableInstance.setColumnWidth(1, 150);
+          //   }
+          // }, 4000);
+
         } catch (e) {
-          console.error(e.message);
+          console.error("Error initializing ResizableTable:", e.message, e);
         }
       });
     </script>
