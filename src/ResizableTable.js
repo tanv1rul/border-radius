@@ -10,14 +10,11 @@
     'use strict';
 
     class ResizableTable {
-
         constructor(targetElementOrSelector, userOptions = {}) {
-
             this.isInitialized = false;
             this.isResizing = false;
             this.startX = 0;
             this.currentColumnIndex = -1;
-            this.currentHeaderCellIndex = -1; // Added in previous step
             this.startWidth = 0;
             this.rafPending = false;
             this.lastMouseX = 0;
@@ -58,13 +55,6 @@
             this.minColumnWidth = this.options.minColumnWidth;
             this.maxColumnWidth = this.options.maxColumnWidth;
 
-            this.options = Object.assign({}, {
-                resizeUpdateInterval: 0, // Default to no throttling
-                deferDomWrites: false // Default to synchronous DOM writes
-            }, options);
-
-            this.lastResizeUpdateTime = 0; // For throttling
-
             let tableElement;
             if (typeof targetElementOrSelector === 'string') {
                 tableElement = document.querySelector(targetElementOrSelector);
@@ -83,53 +73,29 @@
             this._onDragStart = this._onDragStart.bind(this);
             this._onDragMoveWrapper = this._onDragMoveWrapper.bind(this);
             this._onDragEndWrapper = this._onDragEndWrapper.bind(this);
-            this._throttledUpdate = this._throttledUpdate.bind(this); // Bind new method
         }
 
         init() {
-
             this.originalTableState = this.table.cloneNode(true);
             let head = this.table.tHead;
             if (!head && this.table.tBodies && this.table.tBodies.length > 0 && this.table.tBodies[0].rows.length > 0) {
                 this.headerRow = this.table.tBodies[0].rows[0];
             } else if (head) {
                 this.headerRow = head.rows.length > 0 ? head.rows[0] : null;
-
             }
             if (!this.headerRow) { console.error("RT: No header row."); return; }
-
 
             this.columnCount = (this.headerRow.cells || []).length;
             if (this.columnCount === 0) { console.warn("RT: No columns in header."); }
 
-
             this.table.style.tableLayout = 'fixed';
-
-            // Attempt to apply overflow-x: auto to parent element
-            const parentEl = this.table.parentNode;
-            if (parentEl && parentEl instanceof HTMLElement) {
-                const parentStyles = window.getComputedStyle(parentEl);
-                const currentOverflowX = parentStyles.overflowX;
-
-                if (currentOverflowX === 'visible' || currentOverflowX === 'initial' || currentOverflowX === 'unset') {
-                    parentEl.style.overflowX = 'auto';
-                    console.log(`ResizableTable: Applied overflow-x: auto; to parent element of table '${this.table.id || '[no id]'}':`, parentEl);
-                } else {
-                    console.warn(`ResizableTable: Parent element of table '${this.table.id || '[no id]'}' already has overflow-x: ${currentOverflowX}. Plugin will not override.`, parentEl);
-                }
-            } else {
-                console.warn(`ResizableTable: Could not apply overflow-x to parent of table '${this.table.id || '[no id]}'. Parent element not found or not an HTMLElement.`, parentEl);
-            }
-
             this.columnWidths = [];
-
             Array.from(this.headerRow.cells).forEach((cell, index) => {
                 try {
                     this.columnWidths[index] = parseFloat(window.getComputedStyle(cell).width);
                     cell.style.width = this.columnWidths[index] + 'px';
                 } catch (e) { console.error(`RT: Error init width col ${index}:`, e); }
             });
-
 
             this._createResizeHandles();
             this._createCollapseToggles();
@@ -149,7 +115,6 @@
             if (!this.options.enableResizing) return;
             if (!this.headerRow) { return; }
             try {
-
                 Array.from(this.headerRow.cells).forEach((th, index) => {
                     if (th.rowSpan > 1 || th.colSpan > 1) { /* warn */ }
                     if (window.getComputedStyle(th).position === 'static') th.style.position = 'relative';
@@ -171,13 +136,11 @@
                     this.resizeHandles[index] = handle;
                 });
             } catch (e) { console.error("RT: Error creating resize handles:", e); }
-
         }
 
         _createCollapseToggles() {
             if (!this.options.enableCollapsing || !this.headerRow) return;
             try {
-
                 if(!this.collapseToggles) this.collapseToggles = [];
                 Array.from(this.headerRow.cells).forEach((th, index) => {
                     if (window.getComputedStyle(th).position === 'static') th.style.position = 'relative';
@@ -207,7 +170,6 @@
         _onCollapseToggle(eventOrColumnIndex) {
             let columnIndex;
             let mainToggleElement;
-
 
             if (typeof eventOrColumnIndex === 'number') {
                 columnIndex = eventOrColumnIndex;
@@ -279,7 +241,6 @@
                         try { this.options.onColumnCollapse(eventPayload); }
                         catch(e) { console.warn(`RT: Error in onColumnCollapse callback:`, e); }
                     }
-
                 } else { // Expanding with placeholders
                     const columnData = this.collapsedColumnData[columnIndex];
                     if (!columnData) return;
@@ -296,7 +257,6 @@
                     if(typeof this.options.onColumnExpand === 'function') {
                         try { this.options.onColumnExpand(eventPayload); }
                         catch(e) { console.warn(`RT: Error in onColumnExpand callback:`, e); }
-
                     }
                 }
             } else { // Simple display:none strategy (no placeholders)
@@ -306,7 +266,6 @@
                         this.columnWidths[columnIndex] = currentWidth;
                         headerCell.style.display = 'none';
                     }
-
                     tableRows.forEach(row => {
                         if (row.cells && row.cells[columnIndex]) row.cells[columnIndex].style.display = 'none';
                     });
@@ -336,7 +295,6 @@
                  mainToggleElement.title = newCollapsedState ?
                     `Expand column ${headerCell.textContent.trim() || columnIndex + 1}` :
                     `Collapse column ${headerCell.textContent.trim() || columnIndex + 1}`;
-
             }
         }
 
@@ -350,7 +308,6 @@
             if (!this.options.enableResizing) return;
             event.preventDefault();
             const handle = event.currentTarget;
-
             const columnIndex = parseInt(handle.dataset.columnIndex, 10);
             if (isNaN(columnIndex)) { return; }
             this.isTouchEvent = isTouchEvent;
@@ -371,7 +328,6 @@
             if(typeof this.options.onColumnResizeStart === 'function') {
                 try { this.options.onColumnResizeStart(eventPayload); }
                 catch(e) { console.warn(`RT: Error in onColumnResizeStart callback:`, e); }
-
             }
 
             const listeners = this.isTouchEvent ?
@@ -384,7 +340,6 @@
         _onDragMoveWrapper(event) {
             if (!this.isResizing) return;
             const clientX = this.isTouchEvent ? event.touches[0].clientX : event.clientX;
-
             this.lastMouseX = clientX;
             if (!this.rafPending) {
                 this.rafPending = true;
@@ -394,7 +349,6 @@
                 });
             }
             if (this.isTouchEvent ) { event.preventDefault(); }
-
         }
 
         _onDragEndWrapper(event) {
@@ -434,13 +388,10 @@
             this.isTouchEvent = false;
         }
 
-
         _updateColumnWidth() {
-
             if (!this.isResizing) return;
             const currentX = this.lastMouseX;
             const deltaX = currentX - this.startX;
-
             let newWidth = this.startWidth + deltaX;
             newWidth = Math.max(this.minColumnWidth, Math.min(newWidth, this.maxColumnWidth));
             const th = this.headerRow.cells[this.currentColumnIndex];
@@ -452,12 +403,10 @@
             const maxIndex = this.headerRow ? this.headerRow.cells.length - 1 : -1;
             if (typeof columnIndex !== 'number' || columnIndex < 0 || columnIndex > maxIndex) {
                 console.error(`RT: Invalid columnIndex ${columnIndex}.`); return;
-
             }
             if (this.headerRow.cells[columnIndex].colSpan > 1) { /* warn */ }
             this._onCollapseToggle(columnIndex);
         }
-
 
         destroy() {
             if (!this.isInitialized) { console.warn("RT: Not initialized or destroyed."); return; }
@@ -474,70 +423,7 @@
                  if (this.table.style.tableLayout === 'fixed') {
                     this.table.style.tableLayout = this.originalTableState?.style.tableLayout || '';
                  }
-
             }
-
-            // Handle active resizing cleanup
-            if (this.isResizing) {
-                if (this.isTouchEvent) {
-                    document.removeEventListener('touchmove', this._onDragMoveWrapper);
-                    document.removeEventListener('touchend', this._onDragEndWrapper);
-                    document.removeEventListener('touchcancel', this._onDragEndWrapper);
-                } else {
-                    document.removeEventListener('mousemove', this._onDragMoveWrapper);
-                    document.removeEventListener('mouseup', this._onDragEndWrapper);
-                }
-                this.isResizing = false;
-                // Reset drag-related properties as well for good measure
-                this.startX = 0;
-                this.startWidth = 0;
-                this.lastMouseX = 0;
-                this.currentColumnIndex = -1;
-                this.isTouchEvent = false;
-            }
-
-            // Remove resize handles and their event listeners
-            if (this.resizeHandles) { // Check if the object exists
-                Object.values(this.resizeHandles).forEach(handle => {
-                    if (handle) {
-                        handle.removeEventListener('mousedown', this._onMouseDown);
-                        handle.removeEventListener('touchstart', this._onTouchStart);
-                        if (handle._rtKeyDownListener) { // Check if the listener was stored
-                            handle.removeEventListener('keydown', handle._rtKeyDownListener);
-                        }
-                        if (handle.parentNode) {
-                            handle.parentNode.removeChild(handle);
-                        }
-                    }
-                });
-                this.resizeHandles = {}; // Reset to an empty object
-            }
-
-            // Remove collapse toggles and their event listeners
-            if (this.collapseToggles) { // Check if the object exists
-                Object.values(this.collapseToggles).forEach(toggle => {
-                    if (toggle) {
-                        toggle.removeEventListener('click', this._onCollapseToggle);
-                        if (toggle.parentNode) {
-                            toggle.parentNode.removeChild(toggle);
-                        }
-                    }
-                });
-                this.collapseToggles = {}; // Reset to an empty object
-            }
-
-            // Note: Reverting table.style.tableLayout or cell.style.position that were
-            // set by this script would require storing their original values during init.
-            // This is not currently implemented.
-
-            // Reset internal state
-            this.columnWidths = [];
-            this.collapsedColumns = {};
-            // this.headerRow = null; // Might be useful if table element itself is not destroyed by user
-            // this.table = null; // Avoid nulling out if user might re-init, though destroy implies full cleanup.
-
-            this.isInitialized = false;
-            console.info("ResizableTable: Instance destroyed.");
         }
 
         setColumnWidth(columnIndex, width) {
