@@ -17,15 +17,29 @@
     class ResizableTable {
         constructor(targetElementOrSelector, options) {
             this.options = Object.assign({}, { forceFixedLayout: true, minColumnWidth: 20 }, options);
+        /**
+         * @param {string|HTMLTableElement} targetElementOrSelector - The table element or its selector.
+         * @param {object} [options] - Optional configuration.
+         * @param {number} [options.resizeUpdateInterval=0] - Interval in ms to throttle resize updates during drag. 0 for no throttling (uses rAF).
+         * @param {boolean} [options.deferDomWrites=false] - If true, attempts to defer DOM write operations (setting column width) using `requestIdleCallback`. Experimental.
+         */
             this.isInitialized = false;
             this.isResizing = false;
             this.startX = 0;
             this.currentColumnIndex = -1;
+            this.currentHeaderCellIndex = -1; // Added in previous step
             this.startWidth = 0;
             this.rafPending = false;
             this.lastMouseX = 0;
-            this.collapsedColumns = {}; // Initialize collapsedColumns
+            this.collapsedColumns = {};
             this.isTouchEvent = false;
+
+            this.options = Object.assign({}, {
+                resizeUpdateInterval: 0, // Default to no throttling
+                deferDomWrites: false // Default to synchronous DOM writes
+            }, options);
+
+            this.lastResizeUpdateTime = 0; // For throttling
 
             let tableElement;
 
@@ -55,6 +69,7 @@
             this._onDragStart = this._onDragStart.bind(this);
             this._onDragMoveWrapper = this._onDragMoveWrapper.bind(this);
             this._onDragEndWrapper = this._onDragEndWrapper.bind(this);
+            this._throttledUpdate = this._throttledUpdate.bind(this); // Bind new method
         }
 
         init() {
@@ -135,6 +150,7 @@
             try {
                 const headerCells = Array.from(this.headerRow.cells);
                 this.resizeHandles = [];
+                let currentActualColumnIndex = 0; // Tracks the actual column index considering colspans
 
                 headerCells.forEach((th, index) => {
                     try {
@@ -290,7 +306,23 @@
             event.stopPropagation(); // Crucial to prevent interference
 
             const toggle = event.currentTarget;
-            const columnIndex = parseInt(toggle.dataset.columnIndex, 10);
+            // The collapse toggle should operate on the visual header cell and its corresponding actual columns.
+            // For now, let's assume toggle.dataset.columnIndex refers to the *header cell index*, not the actual column index.
+            // This needs to be consistent with how it's set in _createCollapseToggles.
+            // Let's verify _createCollapseToggles uses header cell index.
+            const headerCellIndex = parseInt(toggle.dataset.columnIndex, 10); // Assuming this is header cell index
+
+            if (isNaN(headerCellIndex)) {
+                console.error("ResizableTable: Could not determine header cell index for collapse toggle.", toggle);
+                return;
+            }
+
+            // TODO: If a cell has colspan, collapsing it should hide all spanned actual columns.
+            // This part needs further implementation if a single header cell with colspan is collapsed.
+            // For now, the logic might only work correctly for cells with colspan=1.
+            // Let's assume for now that columnIndex for collapse refers to the first actual column in a span.
+            const columnIndex = headerCellIndex; // This is a simplification for now.
+            console.log(`ResizableTable: Collapse toggle clicked for header cell index: ${headerCellIndex}. Corresponding actual column index (simplified): ${columnIndex}`);
 
             if (isNaN(columnIndex)) {
                 console.error("ResizableTable: Could not determine column index for collapse toggle.", toggle);
@@ -383,27 +415,52 @@
             // event.stopPropagation(); // Not strictly needed here unless other listeners on handle
 
             const handle = event.currentTarget;
-            const columnIndex = parseInt(handle.dataset.columnIndex, 10);
+            const actualColumnIndexToResize = parseInt(handle.dataset.columnIndex, 10); // This is the actual target column
+            const headerCellIndex = parseInt(handle.dataset.headerCellIndex, 10); // Original header cell
 
-            if (isNaN(columnIndex)) {
-                console.error("ResizableTable: Invalid column index from handle.", handle);
+            if (isNaN(actualColumnIndexToResize)) {
+                console.error("ResizableTable: Invalid actual column index from handle.", handle);
+                return;
+            }
+            if (isNaN(headerCellIndex)) {
+                console.error("ResizableTable: Invalid header cell index from handle.", handle);
                 return;
             }
 
             this.isTouchEvent = isTouchEvent;
             this.startX = clientX;
-            this.lastMouseX = clientX; // Use lastMouseX consistently for RAF logic, even for touch
-            this.currentColumnIndex = columnIndex;
+            this.lastMouseX = clientX;
+            this.currentColumnIndex = actualColumnIndexToResize; // This is the actual column index we are resizing
+            this.currentHeaderCellIndex = headerCellIndex; // Keep track of the header cell this handle belongs to
 
-            const th = this.headerRow.cells[columnIndex];
-            if (!th) {
-                console.error(`ResizableTable: DragStart - Could not find header cell for column ${columnIndex}.`);
+            // Get the TH element that this handle is a child of (which might have a colspan)
+            const thWithHandle = this.headerRow.cells[headerCellIndex];
+            if (!thWithHandle) {
+                console.error(`ResizableTable: DragStart - Could not find header cell (index ${headerCellIndex}) that contains the handle.`);
                 return;
             }
-            this.startWidth = parseFloat(th.style.width || window.getComputedStyle(th).width);
 
+            // The startWidth should be the width of the *specific actual column being resized*.
+            // This should come from our `this.columnWidths` array.
+            if (typeof this.columnWidths[actualColumnIndexToResize] !== 'number' || this.columnWidths[actualColumnIndexToResize] <= 0) {
+                // This might happen if initialization of columnWidths for spanned columns was not perfect or resulted in zero/undefined.
+                // Fallback to a portion of the thWithHandle's computed width.
+                const colSpan = thWithHandle.colSpan || 1;
+                const thComputedWidth = parseFloat(window.getComputedStyle(thWithHandle).width);
+                this.startWidth = thComputedWidth / colSpan;
+                console.warn(`ResizableTable: DragStart - Width for actual column ${actualColumnIndexToResize} was invalid (${this.columnWidths[actualColumnIndexToResize]}). Using proportional width (${this.startWidth.toFixed(2)}px) from header cell ${headerCellIndex} (width ${thComputedWidth.toFixed(2)}px, colspan ${colSpan}).`);
+                // Optionally, update columnWidths here if it was really bad
+                // this.columnWidths[actualColumnIndexToResize] = this.startWidth;
+            } else {
+                this.startWidth = this.columnWidths[actualColumnIndexToResize];
+            }
+
+            // If the column being resized is the last in a colspan group,
+            // the thWithHandle is the cell whose visual width will appear to change.
+            // If it's a single column (colspan=1), thWithHandle is also the direct cell.
+            console.log(`ResizableTable: DragStart - Target actual column ${actualColumnIndexToResize} (from header cell ${headerCellIndex}, colspan ${thWithHandle.colSpan || 1}). StartX: ${this.startX.toFixed(2)}, StartWidth of actual column: ${this.startWidth.toFixed(2)}px, isTouch: ${this.isTouchEvent}`);
             this.isResizing = true;
-            console.log(`ResizableTable: DragStart - Column ${columnIndex}, startX: ${this.startX.toFixed(2)}, startWidth: ${this.startWidth.toFixed(2)}px, isTouch: ${this.isTouchEvent}`);
+
 
             if (this.isTouchEvent) {
                 document.addEventListener('touchmove', this._onDragMoveWrapper, { passive: false });
@@ -420,16 +477,37 @@
             // This wrapper will extract clientX and call _onDragMove (new method similar to old _onMouseMove)
             // For now, just call existing _onMouseMove logic and _updateColumnWidth by proxy
             const clientX = this.isTouchEvent ? event.touches[0].clientX : event.clientX;
-            this.lastMouseX = clientX; // Update for RAF
+            this.lastMouseX = clientX; // Always update lastMouseX for _updateColumnWidth to use
 
-            if (!this.rafPending) {
-                this.rafPending = true;
-                requestAnimationFrame(() => {
-                    this._updateColumnWidth(); // _updateColumnWidth uses this.lastMouseX
-                    this.rafPending = false;
-                });
+            if (this.options.resizeUpdateInterval && this.options.resizeUpdateInterval > 0) {
+                // Throttling is enabled.
+                const now = Date.now();
+                // Check if enough time has passed since the last throttled update.
+                if (now - this.lastResizeUpdateTime > this.options.resizeUpdateInterval) {
+                    if (!this.rafPending) { // And no rAF is currently pending.
+                        this.rafPending = true;
+                        // Schedule _throttledUpdate via rAF.
+                        // Pass `now` to ensure `lastResizeUpdateTime` is set based on when this decision
+                        // to update was made, not when rAF eventually executes.
+                        console.log(`ResizableTable: Throttling resize event. Interval: ${this.options.resizeUpdateInterval}ms. Scheduling update.`);
+                        requestAnimationFrame(() => this._throttledUpdate(now));
+                    }
+                }
+                // If not enough time has passed, do nothing in this call.
+                // The latest `this.lastMouseX` is stored and will be used when the throttle interval allows an update.
+            } else {
+                // No throttling (or invalid interval), use default rAF behavior for every move event.
+                if (!this.rafPending) {
+                    this.rafPending = true;
+                    requestAnimationFrame(() => {
+                        // console.log("ResizableTable: Standard rAF update."); // Optional: for debugging non-throttled path
+                        this._updateColumnWidth(); // _updateColumnWidth uses this.lastMouseX
+                        this.rafPending = false;
+                    });
+                }
             }
-             if (this.isTouchEvent) { // To prevent scrolling while dragging
+
+            if (this.isTouchEvent) { // To prevent scrolling while dragging
                 event.preventDefault();
             }
         }
@@ -472,12 +550,24 @@
         // _onMouseMove and _onMouseUp are now effectively replaced by
         // _onDragMoveWrapper, _onDragEndWrapper, and _updateColumnWidth (which was already used by them)
 
-        _updateColumnWidth() {
+        _throttledUpdate(timestamp) {
+            this._updateColumnWidth();
+            this.lastResizeUpdateTime = timestamp; // Use the timestamp from when the update was scheduled
+            this.rafPending = false;
+            console.log(`ResizableTable: _throttledUpdate executed at ${timestamp}`);
+        }
+
+        /**
+         * Updates the column width in the DOM.
+         * Can defer DOM writes using requestIdleCallback if configured and forceSync is false.
+         * @param {boolean} [forceSync=false] - If true, forces synchronous DOM updates, bypassing requestIdleCallback.
+         */
+        _updateColumnWidth(forceSync = false) {
             if (!this.isResizing) return;
 
             const currentX = this.lastMouseX;
             const deltaX = currentX - this.startX;
-            let newWidth = this.startWidth + deltaX;
+            let newActualColumnWidth = this.startWidth + deltaX;
 
             const minWidth = this.options.minColumnWidth;
             if (newWidth < minWidth) {
