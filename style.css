@@ -22,8 +22,15 @@ h2 {
     margin-top: 30px;
 }
 
+.table-container {
+  width: 600px; /* Fixed width to demonstrate overflow */
+  overflow-x: auto;
+  border: 1px dashed #ccc; /* Optional: to make the container visible */
+  margin-bottom: 20px; /* Optional: for spacing */
+}
+
 table {
-    width: 100%;
+    /* width: 100%; Removed to allow table to overflow its container */
     border-collapse: collapse;
     margin-bottom: 20px;
 }

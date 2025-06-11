@@ -84,6 +84,48 @@ To use the ResizableTable plugin, include the script in your HTML file and then 
     });
     ```
 
+4.  **Handling Table Overflow / Horizontal Scrolling:**
+
+    When columns are resized, the total width of the table might exceed the width of its containing element. To allow users to scroll horizontally in such cases, you need to configure the table's parent container.
+
+    Key points for enabling horizontal scrolling:
+    *   **Parent Container Overflow:** The direct parent element of your table should have the CSS property `overflow-x: auto;` (or `overflow-x: scroll;`). This tells the browser to display a horizontal scrollbar if the content (the table) overflows the container's width.
+    *   **Table Layout:** The plugin automatically sets `table-layout: fixed;` on the table. This is essential for predictable column resizing and is handled for you.
+    *   **Table Width:** For the table to expand beyond its container's boundaries and trigger the scrollbar, its own CSS `width` should typically be `auto` (which is the default for tables) or a width larger than its container. Avoid setting `width: 100%;` on the table if its parent has a fixed width and you intend for the table to overflow that parent, as this would constrain the table to the parent's width.
+
+    **Example HTML/CSS Setup:**
+
+    ```html
+    <div style="width: 600px; /* Example fixed width for the container */ overflow-x: auto; border: 1px solid #ccc; /* Optional: to see container */">
+      <table id="myResizableTable">
+        <thead>
+          <tr>
+            <th>Very Wide Column 1</th>
+            <th>Very Wide Column 2</th>
+            <th>Very Wide Column 3</th>
+            <!-- Add more columns as needed -->
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Data for column 1</td>
+            <td>Data for column 2</td>
+            <td>Data for column 3</td>
+            <!-- Corresponding data cells -->
+          </tr>
+          <!-- More rows -->
+        </tbody>
+      </table>
+    </div>
+
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        new ResizableTable('#myResizableTable');
+      });
+    </script>
+    ```
+    In this example, if the sum of the widths of the columns in `myResizableTable` (after resizing) exceeds `600px`, the `div` will show a horizontal scrollbar. The `ResizableTable.js` plugin will handle the necessary `table-layout: fixed;` style on the table itself.
+
 ---
 
 **Note:** This project is currently under active development. Features and API are subject to change.
